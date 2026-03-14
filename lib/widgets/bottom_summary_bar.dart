@@ -6,35 +6,84 @@ class BottomSummaryBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 1. A MÁGICA: A barra pergunta pro aplicativo se ele está no Modo Escuro
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      color: const Color(0xFFBBDEFB), // Fundo azul claro
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      // 2. Se for escuro (isDark), usa um cinza elegante. Se for claro, usa o azulzinho.
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.blue.shade50,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Usamos uma função para criar os itens, economizando código!
-          _buildSummaryItem(icon: Icons.calculate, title: "Total (0)", value: "R\$ 0,00"),
-          _buildSummaryItem(icon: Icons.shopping_cart, title: "Carrinho (0)", value: "R\$ 0,00"),
+          // Lado Esquerdo: Total
+          Row(
+            children: [
+              Icon(
+                Icons.calculate, 
+                color: isDark ? Colors.grey.shade400 : Colors.blue.shade300, 
+                size: 28
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total (0)', 
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade400 : Colors.blue.shade300, 
+                      fontSize: 12
+                    )
+                  ),
+                  Text(
+                    'R\$ 0,00', 
+                    style: TextStyle(
+                      // Cor do dinheiro: branco no escuro, azul forte no claro
+                      color: isDark ? Colors.white : const Color(0xFF1565C0), 
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 16
+                    )
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Lado Direito: Carrinho
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Carrinho (0)', 
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade400 : Colors.blue.shade300, 
+                      fontSize: 12
+                    )
+                  ),
+                  Text(
+                    'R\$ 0,00', 
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF1565C0), 
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 16
+                    )
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.shopping_cart, 
+                color: isDark ? Colors.grey.shade400 : Colors.blue.shade300, 
+                size: 28
+              ),
+            ],
+          ),
         ],
       ),
-    );
-  }
-
-  // Função auxiliar que "monta" o visual do Total e do Carrinho
-  Widget _buildSummaryItem({required IconData icon, required String title, required String value}) {
-    return Row(
-      children: [
-        Icon(icon, size: 30),
-        const SizedBox(width: 10),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ],
     );
   }
 }

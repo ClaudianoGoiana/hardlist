@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/bottom_summary_bar.dart'; // Importamos a nossa nova pecinha!
+import 'add_product_screen.dart'; // Adicione isso lá em cima junto com as outras importações!
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -64,12 +65,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      
+      // Botão flutuante para adicionar novo produto
       floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF1976D2),
-        onPressed: () {},
+        backgroundColor: const Color(0xFF1565C0),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddProductScreen()),
+          );
+        },
         child: const Icon(Icons.add, color: Colors.white),
       ),
+      
       
       // Chamamos a nossa nova pecinha da barra inferior! Uma linha só!
       bottomNavigationBar: const BottomSummaryBar(), 

@@ -6,6 +6,8 @@ import '../screens/login_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/cloud_screen.dart';
 import '../screens/lists_screen.dart';
+import '../screens/about_screen.dart';
+import '../screens/settings_screen.dart';
 
 // Widget do Menu Lateral
 class AppDrawer extends StatelessWidget {
@@ -133,8 +135,28 @@ class AppDrawer extends StatelessWidget {
             }
           ),
           const Divider(), // Linha divisória
-          _buildDrawerItem(icon: Icons.settings, text: 'Configurações', onTap: () {}),
-          _buildDrawerItem(icon: Icons.info_outline, text: 'Sobre', onTap: () {}),
+          _buildDrawerItem(
+            icon: Icons.settings, 
+            text: 'Configurações', 
+            onTap: () {
+              Navigator.pop(context); // Fecha o menu
+              Navigator.push( // Abre a tela de Configurações
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            }
+          ),
+          _buildDrawerItem(
+            icon: Icons.info_outline, 
+            text: 'Sobre', 
+            onTap: () {
+              Navigator.pop(context); // Fecha o menu
+              Navigator.push( // Abre a tela Sobre
+                context,
+                MaterialPageRoute(builder: (context) => const AboutScreen()),
+              );
+            }
+          ),
         ],
       ),
     );

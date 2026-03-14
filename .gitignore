@@ -11,6 +11,8 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+/windows
+/flutter_build/
 
 # IntelliJ related
 *.iml
@@ -39,12 +41,13 @@ Thumbs.db
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
+.dart_tool/flutter_build/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+.dart_tool/
 
 # Symbolication related
 app.*.symbols

@@ -1,12 +1,21 @@
 // Arquivo: lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart'; // Importando a Home direto para pular o login nos testes
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- NOVO: Importamos o Supabase
+import 'screens/lists_screen.dart'; 
 
-// 1. O nosso "Rádio Comunicador" Global!
-// Ele guarda o aviso se o tema atual é Claro ou Escuro.
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
-void main() {
+// <-- MUDANÇA: O main agora é "Future" e "async" para poder esperar o banco de dados ligar
+Future<void> main() async {
+  // Isto é obrigatório quando usamos coisas como o Supabase antes do runApp
+  WidgetsFlutterBinding.ensureInitialized(); 
+
+  // --- LIGAÇÃO AO SUPABASE ---
+  await Supabase.initialize(
+    url: 'https://zlfhxcksweffglpjelci.supabase.co', // Exemplo: https://abxyz...supabase.co
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsZmh4Y2tzd2VmZmdscGplbGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTEzNjYsImV4cCI6MjA4OTA4NzM2Nn0.7uTTIkA0FwPOv2XIWhXMBynmXEFW3ovFucooL1XuRsU', // Aquele texto gigante
+  );
+
   runApp(const HardListApp());
 }
 
@@ -15,8 +24,8 @@ class HardListApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 2. O Ouvinte! Ele fica escutando o rádio 24 horas por dia.
     return ValueListenableBuilder<ThemeMode>(
+// ... (O resto do código para baixo continua exatamente igual!) ...
       valueListenable: themeNotifier,
       builder: (context, currentMode, child) {
         
@@ -49,7 +58,7 @@ class HardListApp extends StatelessWidget {
           themeMode: currentMode, 
 
           // MUDAMOS AQUI: Tiramos o LoginScreen() e colocamos o HomeScreen()
-          home: const HomeScreen(), 
+          home: const ListsScreen(),
         ); // Fim do MaterialApp
         
       }, // Fim do builder

@@ -71,7 +71,7 @@ class AppDrawer extends StatelessWidget {
               // 2. Abre a tela de Produtos
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ProductsScreen()),
+                MaterialPageRoute(builder: (context) => const ProductsScreen(categoriaNome: 'Todos')),
               );
             }
           ),

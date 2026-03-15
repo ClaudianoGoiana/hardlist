@@ -39,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Muda o tema do aplicativo'), // Mudei o texto aqui!
             secondary: const Icon(Icons.dark_mode),
             value: _isDarkMode,
-            activeColor: const Color(0xFF1565C0),
+            activeThumbColor: const Color(0xFF1565C0),
             onChanged: (bool value) {
               setState(() {
                 _isDarkMode = value; // Atualiza a chavinha visualmente
@@ -61,7 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Lembrar de sincronizar listas'),
             secondary: const Icon(Icons.notifications_active),
             value: _notificationsEnabled,
-            activeColor: const Color(0xFF1565C0),
+            activeThumbColor: const Color(0xFF1565C0),
             onChanged: (bool value) {
               setState(() {
                 _notificationsEnabled = value; 

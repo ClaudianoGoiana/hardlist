@@ -2,13 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // <-- NOVO: Importamos o Supabase
 import 'screens/lists_screen.dart'; 
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
 // <-- MUDANÇA: O main agora é "Future" e "async" para poder esperar o banco de dados ligar
 Future<void> main() async {
   // Isto é obrigatório quando usamos coisas como o Supabase antes do runApp
-  WidgetsFlutterBinding.ensureInitialized(); 
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // --- MÁGICA PARA O BANCO DE DADOS FUNCIONAR NO WINDOWS ---
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  } 
 
   // --- LIGAÇÃO AO SUPABASE ---
   await Supabase.initialize(

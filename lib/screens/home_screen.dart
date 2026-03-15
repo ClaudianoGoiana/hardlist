@@ -2,77 +2,102 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../dados/banco_local.dart'; // O nosso cofre local!
 import 'add_product_screen.dart';
 import '../widgets/app_drawer.dart';
 
-class HomeScreen extends StatelessWidget {
-  final String listaId;   // RECEBE O ID DA LISTA
-  final String listaNome; // RECEBE O NOME DA LISTA
+class HomeScreen extends StatefulWidget {
+  final String listaId;
+  final String listaNome;
 
   const HomeScreen({super.key, required this.listaId, required this.listaNome});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Map<String, dynamic>> _produtos = [];
+  bool _carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarProdutos(); // Carrega os itens do cofre assim que a tela abre
+  }
+
+  // --- FUNÇÃO PARA BUSCAR OS PRODUTOS DESTA LISTA NO CELULAR ---
+  Future<void> _carregarProdutos() async {
+    try {
+      final db = await BancoLocal.bancoDeDados;
+      // Busca apenas os produtos que têm a etiqueta (lista_id) desta lista!
+      final dados = await db.query('produtos', where: 'lista_id = ?', whereArgs: [widget.listaId]);
+      
+      setState(() {
+        _produtos = dados;
+        _carregando = false;
+      });
+    } catch (erro) {
+      debugPrint('Erro ao carregar produtos: $erro');
+      setState(() { _carregando = false; });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      // MÁGICA 1: O Filtro .eq('lista_id', listaId) só traz os produtos DESTA lista!
-      stream: Supabase.instance.client.from('produtos').stream(primaryKey: ['id']).eq('lista_id', listaId),
-      builder: (context, snapshot) {
-        
-        double valorTotalLista = 0.0;
-        double valorNoCarrinho = 0.0;
-        List<Map<String, dynamic>> produtos = [];
+    // Calculando os totais antes de desenhar a tela
+    double valorTotalLista = 0.0;
+    double valorNoCarrinho = 0.0;
 
-        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          produtos = snapshot.data!;
-          for (var produto in produtos) {
-            double preco = (produto['preco'] as num).toDouble();
-            int qtd = int.tryParse(produto['quantidade'].toString()) ?? 1;
-            bool comprado = produto['comprado'] ?? false;
-            
-            double totalDoItem = preco * qtd;
-            valorTotalLista += totalDoItem;
-            if (comprado) valorNoCarrinho += totalDoItem;
-          }
-        }
+    for (var produto in _produtos) {
+      double preco = (produto['preco'] as num).toDouble();
+      int qtd = int.tryParse(produto['quantidade'].toString()) ?? 1;
+      
+      // O SQLite usa 1 para Verdadeiro e 0 para Falso!
+      bool comprado = produto['comprado'] == 1; 
+      
+      double totalDoItem = preco * qtd;
+      valorTotalLista += totalDoItem;
+      if (comprado) valorNoCarrinho += totalDoItem;
+    }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(listaNome), // MOSTRA O NOME DA LISTA LÁ EM CIMA
-            actions: [
-              IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
-            ],
-          ),
-          drawer: const AppDrawer(),
-          
-          body: produtos.isEmpty
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.listaNome),
+        actions: [
+          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+        ],
+      ),
+      drawer: const AppDrawer(),
+      
+      body: _carregando
+          ? const Center(child: CircularProgressIndicator())
+          : _produtos.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.turn_right, size: 80, color: Colors.grey.shade400),
-                      Text('Sua lista "$listaNome"\nestá vazia.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, color: Colors.grey)),
+                      Text('Sua lista "${widget.listaNome}"\nestá vazia.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, color: Colors.grey)),
                     ],
                   ),
                 )
-              : _construirListaAgrupada(produtos, context),
+              : _construirListaAgrupada(_produtos, context),
 
-          floatingActionButton: FloatingActionButton(
-            backgroundColor: const Color(0xFF1565C0),
-            onPressed: () {
-              // MÁGICA 2: Passa o ID da lista para a tela de Adicionar Produto
-              Navigator.push(context, MaterialPageRoute(builder: (context) => AddProductScreen(listaId: listaId)));
-            },
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF1565C0),
+        onPressed: () async {
+          // MÁGICA DE NAVEGAÇÃO: Ele vai para a tela de adicionar e FICA ESPERANDO (await) você voltar. 
+          // Quando você voltar, ele manda carregar os produtos de novo para a lista atualizar na hora!
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => AddProductScreen(listaId: widget.listaId)));
+          _carregarProdutos();
+        },
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
 
-          bottomNavigationBar: _construirBarraInferior(context, valorTotalLista, valorNoCarrinho),
-        );
-      },
+      bottomNavigationBar: _construirBarraInferior(context, valorTotalLista, valorNoCarrinho),
     );
   }
-
-  // ... (Daqui para baixo é exatamente igual ao que já tínhamos) ...
 
   Widget _construirListaAgrupada(List<Map<String, dynamic>> produtos, BuildContext context) {
     Map<String, List<Map<String, dynamic>>> produtosAgrupados = {};
@@ -81,6 +106,7 @@ class HomeScreen extends StatelessWidget {
       if (!produtosAgrupados.containsKey(categoria)) produtosAgrupados[categoria] = [];
       produtosAgrupados[categoria]!.add(produto);
     }
+    
     final categoriasNomes = produtosAgrupados.keys.toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -95,12 +121,14 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: double.infinity, color: isDark ? Colors.grey.shade800 : Colors.blue.shade50, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              width: double.infinity, 
+              color: isDark ? Colors.grey.shade800 : Colors.blue.shade50, 
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(categoria, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
             ),
             ...itensDaCategoria.map((produto) {
               final String? caminhoFoto = produto['caminho_foto_local'];
-              final bool comprado = produto['comprado'] ?? false;
+              final bool comprado = produto['comprado'] == 1; // Tradução SQLite
               final double preco = (produto['preco'] as num).toDouble();
               final int qtd = int.tryParse(produto['quantidade'].toString()) ?? 1;
 
@@ -109,7 +137,19 @@ class HomeScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300, width: 1)),
                 child: ListTile(
                   onTap: () => _mostrarMenuDeOpcoes(context, produto),
-                  leading: Checkbox(value: comprado, activeColor: const Color(0xFF1565C0), onChanged: (bool? valor) async { await Supabase.instance.client.from('produtos').update({'comprado': valor}).eq('id', produto['id']); }),
+                  
+                  // CHECKBOX DO CARRINHO
+                  leading: Checkbox(
+                    value: comprado, 
+                    activeColor: const Color(0xFF1565C0), 
+                    onChanged: (bool? valor) async { 
+                      final db = await BancoLocal.bancoDeDados;
+                      // Transforma true/false em 1/0 para o banco
+                      await db.update('produtos', {'comprado': valor == true ? 1 : 0}, where: 'id = ?', whereArgs: [produto['id']]);
+                      _carregarProdutos(); // Atualiza a tela
+                    }
+                  ),
+                  
                   title: Text(produto['nome'], style: TextStyle(fontWeight: FontWeight.bold, decoration: comprado ? TextDecoration.lineThrough : null, color: comprado ? Colors.grey : null)),
                   subtitle: Text('${produto['quantidade']} un.'),
                   trailing: Row(
@@ -117,8 +157,18 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       Text('R\$ ${(preco * qtd).toStringAsFixed(2).replaceAll('.', ',')}', style: TextStyle(color: comprado ? Colors.grey : const Color(0xFF1565C0), fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(width: 8),
-                      if (caminhoFoto != null) ClipRRect(borderRadius: BorderRadius.circular(8), child: kIsWeb ? Image.network(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover) : Image.file(File(caminhoFoto), width: 45, height: 45, fit: BoxFit.cover))
-                      else const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
+                      // A MÁGICA DAS FOTOS DUPLAS CONTINUA AQUI!
+                      if (caminhoFoto != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: caminhoFoto.startsWith('assets/') 
+                            ? Image.asset(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover)
+                            : (kIsWeb 
+                                ? Image.network(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover) 
+                                : Image.file(File(caminhoFoto), width: 45, height: 45, fit: BoxFit.cover)),
+                        )
+                      else
+                        const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
                     ],
                   ),
                 ),
@@ -133,8 +183,21 @@ class HomeScreen extends StatelessWidget {
   void _mostrarMenuDeOpcoes(BuildContext context, Map<String, dynamic> produto) {
     showModalBottomSheet(context: context, builder: (context) {
       return SafeArea(child: Wrap(children: [
-        ListTile(leading: const Icon(Icons.edit, color: Colors.blue), title: const Text('Editar Produto'), onTap: () { Navigator.pop(context); _mostrarTelaDeEdicao(context, produto); }),
-        ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text('Excluir Produto'), onTap: () async { Navigator.pop(context); await Supabase.instance.client.from('produtos').delete().eq('id', produto['id']); }),
+        ListTile(
+          leading: const Icon(Icons.edit, color: Colors.blue), 
+          title: const Text('Editar Produto'), 
+          onTap: () { Navigator.pop(context); _mostrarTelaDeEdicao(context, produto); }
+        ),
+        ListTile(
+          leading: const Icon(Icons.delete, color: Colors.red), 
+          title: const Text('Excluir Produto'), 
+          onTap: () async { 
+            Navigator.pop(context); 
+            final db = await BancoLocal.bancoDeDados;
+            await db.delete('produtos', where: 'id = ?', whereArgs: [produto['id']]);
+            _carregarProdutos(); // Atualiza a tela
+          }
+        ),
       ]));
     });
   }
@@ -161,8 +224,18 @@ class HomeScreen extends StatelessWidget {
             onPressed: () async {
               String precoTexto = precoController.text.replaceAll(',', '.');
               double precoFinal = double.tryParse(precoTexto) ?? 0.0;
-              await Supabase.instance.client.from('produtos').update({'nome': nomeController.text, 'quantidade': qtdController.text, 'preco': precoFinal}).eq('id', produto['id']);
-              if (context.mounted) Navigator.pop(context);
+              
+              final db = await BancoLocal.bancoDeDados;
+              await db.update('produtos', {
+                'nome': nomeController.text, 
+                'quantidade': qtdController.text, 
+                'preco': precoFinal
+              }, where: 'id = ?', whereArgs: [produto['id']]);
+              
+              if (context.mounted) {
+                Navigator.pop(context);
+                _carregarProdutos(); // Atualiza a tela
+              }
             },
             child: const Text('Salvar'),
           ),

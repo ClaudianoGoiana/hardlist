@@ -1,0 +1,5 @@
+{
+    "cmake.sourceDirectory": "F:/Projeto/hardlist/linux",
+    "GeminiBot.model": "gemini-1.5-pro",
+    "CodeGPT.apiKey": "Anthropic"
+}

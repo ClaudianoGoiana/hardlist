@@ -1,9 +1,13 @@
 // Arquivo: lib/screens/home_screen.dart
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../dados/banco_local.dart'; // O nosso cofre local!
 import 'add_product_screen.dart';
+import 'history_screen.dart';
 import '../widgets/app_drawer.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -65,6 +69,13 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(widget.listaNome),
         actions: [
+          // Botão para compartilhar no cloud (só se estiver logado)
+          if (Supabase.instance.client.auth.currentUser != null)
+            IconButton(
+              icon: const Icon(Icons.cloud_upload),
+              tooltip: 'Compartilhar no Cloud',
+              onPressed: () => _compartilharLista(context),
+            ),
           IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
         ],
       ),
@@ -157,15 +168,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text('R\$ ${(preco * qtd).toStringAsFixed(2).replaceAll('.', ',')}', style: TextStyle(color: comprado ? Colors.grey : const Color(0xFF1565C0), fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(width: 8),
-                      // A MÁGICA DAS FOTOS DUPLAS CONTINUA AQUI!
-                      if (caminhoFoto != null)
+                      // Mostra imagem de asset, arquivo local ou URL, com fallback.
+                      if (caminhoFoto != null && caminhoFoto.startsWith('assets/'))
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: caminhoFoto.startsWith('assets/') 
-                            ? Image.asset(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover)
-                            : (kIsWeb 
-                                ? Image.network(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover) 
-                                : Image.file(File(caminhoFoto), width: 45, height: 45, fit: BoxFit.cover)),
+                          child: Image.asset(
+                            caminhoFoto,
+                            width: 45,
+                            height: 45,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
+                          ),
+                        )
+                      else if (caminhoFoto != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: kIsWeb 
+                              ? Image.network(caminhoFoto, width: 45, height: 45, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag, size: 40, color: Colors.grey))
+                              : Image.file(File(caminhoFoto), width: 45, height: 45, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(Icons.shopping_bag, size: 40, color: Colors.grey)),
                         )
                       else
                         const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
@@ -244,6 +266,136 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Função para confirmar a compra
+  Future<void> _confirmarCompra(BuildContext context, double valorCompra) async {
+    // Se não há itens no carrinho, não faz nada
+    final itensNoCarrinho = _produtos.where((p) => p['comprado'] == 1).toList();
+    if (itensNoCarrinho.isEmpty) return;
+
+    // Salva o histórico da compra
+    final id = const Uuid().v4();
+    final dataAgora = DateTime.now().toIso8601String();
+    final produtosJson = jsonEncode(itensNoCarrinho);
+
+    await BancoLocal.adicionarHistorico(
+      id: id,
+      listaId: widget.listaId,
+      nome: widget.listaNome,
+      data: dataAgora,
+      valor: valorCompra,
+      produtosJson: produtosJson,
+    );
+
+    // Limpa o carrinho (marca itens como não comprados)
+    final db = await BancoLocal.bancoDeDados;
+    for (var item in itensNoCarrinho) {
+      await db.update('produtos', {'comprado': 0}, where: 'id = ?', whereArgs: [item['id']]);
+    }
+
+    await _carregarProdutos();
+
+    // Navega para o histórico e, ao voltar, mostra um aviso
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const HistoryScreen()),
+    ).then((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Compra de R\$ ${valorCompra.toStringAsFixed(2).replaceAll('.', ',')} confirmada!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    });
+  }
+
+  // Função para compartilhar lista no cloud
+  Future<void> _compartilharLista(BuildContext context) async {
+    final usuario = Supabase.instance.client.auth.currentUser;
+    if (usuario == null) return;
+
+    final id = const Uuid().v4();
+    final produtosJson = jsonEncode(_produtos);
+
+    // Verifica se já existe uma lista compartilhada com este nome para este usuário
+    final listasCloud = await BancoLocal.listarListasCloud();
+    final listaJaCompartilhada = listasCloud.any(
+      (lista) => lista['lista_id'] == widget.listaId && lista['usuario_id'] == usuario.id
+    );
+
+    if (listaJaCompartilhada) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Esta lista já foi compartilhada no cloud')),
+      );
+      return;
+    }
+
+    try {
+      // Salva localmente
+      await BancoLocal.compartilharLista(
+        id: id,
+        listaId: widget.listaId,
+        nome: widget.listaNome,
+        usuarioId: usuario.id,
+        produtosJson: produtosJson,
+      );
+
+      if (!context.mounted) return;
+
+      final bool enviarParaNuvem = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Enviar para nuvem?'),
+              content: const Text('A lista já foi salva localmente. Deseja enviar para a nuvem também?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Não'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Sim'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+
+      if (!enviarParaNuvem) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lista salva localmente.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enviando para nuvem...')),
+      );
+
+      // Sincroniza com Supabase para outros usuários verem
+      await BancoLocal.compartilharListaNaCloud(
+        id: id,
+        listaId: widget.listaId,
+        nome: widget.listaNome,
+        usuarioId: usuario.id,
+        produtosJson: produtosJson,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lista compartilhada com sucesso!')),
+      );
+    } catch (e) {
+      // Se falhar no envio para a nuvem, remove o registro local dessa tentativa
+      // para permitir novo envio sem bloquear por "já compartilhada".
+      try {
+        await BancoLocal.removerListaCloud(id, usuario.id);
+      } catch (_) {}
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao compartilhar: $e')),
+      );
+    }
+  }
+
   Widget _construirBarraInferior(BuildContext context, double valorTotalLista, double valorNoCarrinho) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -260,6 +412,20 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('R\$ ${valorNoCarrinho.toStringAsFixed(2).replaceAll('.', ',')}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
           ]),
         ),
+        // Botão de confirmar compra (só aparece se há itens no carrinho)
+        if (valorNoCarrinho > 0)
+          ElevatedButton.icon(
+            onPressed: () => _confirmarCompra(context, valorNoCarrinho),
+            icon: const Icon(Icons.check_circle),
+            label: const Text('Confirmar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
       ])),
     );
   }

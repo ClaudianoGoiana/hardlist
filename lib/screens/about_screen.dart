@@ -33,12 +33,10 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 24),
               
               // Nome do App
-              const Text(
+              Text(
                 'HardList',
-                style: TextStyle(
-                  fontSize: 28,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 8),
@@ -46,21 +44,19 @@ class AboutScreen extends StatelessWidget {
               // Versão
               Text(
                 'Versão 1.0.0',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 32),
               
               // Descrição curta
-              const Text(
+              Text(
                 'O seu gerenciador definitivo de listas de compras. Controle seus gastos, organize seus produtos e nunca mais esqueça nada no supermercado.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black54,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   height: 1.5,
+                  color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                 ),
               ),
               const SizedBox(height: 48),
@@ -69,17 +65,18 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 16),
               
               // Créditos
-              const Text(
+              Text(
                 'Desenvolvido por',
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                ),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Claudiano Goiana - 2026',
-                style: TextStyle(
-                  fontSize: 18,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1565C0),
+                  color: const Color(0xFF1565C0),
                 ),
               ),
             ],

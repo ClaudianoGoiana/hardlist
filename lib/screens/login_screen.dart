@@ -1,124 +1,164 @@
 import 'package:flutter/material.dart';
-import 'register_screen.dart'; // <-- Adicione esta linha!
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'list_screen.dart';
+import 'register_screen.dart';
 
-
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _carregando = false;
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fazerLoginEmailSenha() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha email e senha')),
+      );
+      return;
+    }
+
+    setState(() => _carregando = true);
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ListScreen()),
+        );
+      }
+    } catch (e) {
+      String errorMessage = 'Erro no login';
+      if (e.toString().contains('Email not confirmed')) {
+        errorMessage = 'Confirme seu email antes de fazer login. Verifique sua caixa de entrada.';
+      } else if (e.toString().contains('Invalid login credentials')) {
+        errorMessage = 'Email ou senha incorretos.';
+      } else {
+        errorMessage = 'Erro no login: $e';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Fundo branco para dar um ar limpo
-      
-      // Barra superior transparente apenas com o botão de voltar
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0, // Remove a sombra
-        // Cor do botão de voltar (o Flutter coloca o botão sozinho)
-        foregroundColor: const Color(0xFF1565C0), 
-      ),
-      
-      // O SingleChildScrollView evita que o teclado cubra os campos dando erro
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0), // Espaço nas bordas
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- 1. Logotipo e Título ---
-              // Usamos um ícone de carrinho para representar o HardList
-              const Icon(Icons.shopping_cart_checkout, size: 80, color: Color(0xFF1565C0)),
-              const SizedBox(height: 16),
+              const Icon(Icons.shopping_cart, size: 100, color: Colors.blue),
+              const SizedBox(height: 20),
               const Text(
-                'Bem-vindo ao HardList',
-                style: TextStyle(
-                  fontSize: 24, 
-                  fontWeight: FontWeight.bold, 
-                  color: Color(0xFF1565C0)
-                ),
+                'HardList',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
 
-              // --- 2. Campo de E-mail ---
+              // Campo Email
               TextField(
+                controller: _emailController,
                 decoration: InputDecoration(
-                  labelText: 'E-mail', // Texto que flutua
-                  prefixIcon: const Icon(Icons.email), // Ícone dentro do campo
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12) // Borda arredondada
-                  ),
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                keyboardType: TextInputType.emailAddress, // Mostra o teclado com o "@"
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
 
-              // --- 3. Campo de Senha ---
+              // Campo Senha
               TextField(
+                controller: _passwordController,
                 decoration: InputDecoration(
                   labelText: 'Senha',
                   prefixIcon: const Icon(Icons.lock),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                obscureText: true, // MÁGICA: Esconde o texto digitado (***)
-              ),
-              const SizedBox(height: 8),
-
-              // --- 4. Botão Esqueci a Senha ---
-              Align(
-                alignment: Alignment.centerRight, // Joga o botão para a direita
-                child: TextButton(
-                  onPressed: () {
-                    print("Clicou em Esqueci a senha");
-                  },
-                  child: const Text('Esqueceu a senha?'),
-                ),
+                obscureText: _obscurePassword,
               ),
               const SizedBox(height: 24),
 
-              // --- 5. Botão de ENTRAR ---
-              SizedBox(
-                width: double.infinity, // Faz o botão ocupar a largura toda
-                height: 50, // Altura do botão
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1976D2), // Nosso azul vibrante
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // Botão Login Email/Senha
+              if (_carregando)
+                const CircularProgressIndicator()
+              else
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _fazerLoginEmailSenha,
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Entrar', style: TextStyle(fontSize: 18)),
+                      ),
                     ),
-                  ),
-                  onPressed: () {
-                    print("Fazer login...");
-                    // No futuro, aqui você valida a senha.
-                    // Por enquanto, vamos fazer ele fechar a tela e voltar para a Home
-                    Navigator.pop(context); 
-                  },
-                  child: const Text(
-                    'ENTRAR', 
-                    style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-              // --- 6. Opção de Criar Conta ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center, // Centraliza tudo
-                children: [
-                  const Text('Não tem uma conta?'),
-                  TextButton(
-                 onPressed: () {
-                   // Navega para a Tela de Cadastro!
-                   Navigator.push(
-                     context,
-                     MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                   );
-                 },
-                 child: const Text('Cadastre-se', style: TextStyle(fontWeight: FontWeight.bold)),
-               ),
-                ],
-              ),
+                    // Botão Google (comentado por problemas de versão)
+                    // SizedBox(
+                    //   width: double.infinity,
+                    //   height: 50,
+                    //   child: OutlinedButton.icon(
+                    //     icon: const Icon(Icons.login, color: Colors.red),
+                    //     label: Text(
+                    //       'Continuar com Google',
+                    //       style: TextStyle(fontSize: 18, color: isDark ? Colors.white : Colors.black87)
+                    //     ),
+                    //     onPressed: _fazerLoginGoogle,
+                    //     style: OutlinedButton.styleFrom(
+                    //       side: const BorderSide(color: Colors.grey),
+                    //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    //     ),
+                    //   ),
+                    // ),
+                    const SizedBox(height: 16),
+
+                    // Link para Registro
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      ),
+                      child: const Text('Não tem conta? Criar conta'),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

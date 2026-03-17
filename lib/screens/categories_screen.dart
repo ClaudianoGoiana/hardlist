@@ -1,15 +1,15 @@
 // Arquivo: lib/screens/categories_screen.dart
 import 'package:flutter/material.dart';
-import 'products_screen.dart'; // Importa a nossa tela inteligente de produtos!
+import 'products_screen.dart';
 
 class CategoriesScreen extends StatelessWidget {
-  const CategoriesScreen({super.key});
+  CategoriesScreen({super.key});
 
   // A nossa lista oficial de corredores do mercado
-  final List<String> _categorias = const [
+  final List<String> _categorias = [
     'Mercearia', 'Açougue', 'Hortifruti', 'Frios e Laticínios', 
     'Bebidas', 'Limpeza', 'Higiene', 'Padaria', 'Outros'
-  ];
+  ]..sort(); // Ordena alfabeticamente
 
   // --- O NOSSO "DICIONÁRIO DE ÍCONES" (MAPA) ---
   final Map<String, IconData> _iconesPorCategoria = const {
@@ -53,7 +53,6 @@ class CategoriesScreen extends StatelessWidget {
               ),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               onTap: () {
-                // 4. A MÁGICA DA NAVEGAÇÃO
                 Navigator.push(
                   context,
                   MaterialPageRoute(

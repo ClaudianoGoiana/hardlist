@@ -17,60 +17,164 @@ class AddProductScreen extends StatefulWidget {
 
 class _AddProductScreenState extends State<AddProductScreen> {
   final List<Map<String, String>> produtos = CatalogoLocal.produtosPadrao;
+  final List<String> _categorias = [
+    'Todas',
+    'Açougue',
+    'Bebidas',
+    'Frios e Laticínios',
+    'Higiene',
+    'Hortifruti',
+    'Limpeza',
+    'Mercearia',
+    'Outros',
+    'Padaria',
+  ];
+  String _categoriaSelecionada = 'Todas';
+  String _textoBusca = '';
 
   @override
   Widget build(BuildContext context) {
+    final produtosFiltrados = produtos.where((produto) {
+      final nome = (produto['nome'] ?? '').toLowerCase();
+      final busca = _textoBusca.toLowerCase();
+
+      final passouBusca = nome.contains(busca);
+      final passouCategoria =
+          _categoriaSelecionada == 'Todas' || produto['categoria'] == _categoriaSelecionada;
+
+      return passouBusca && passouCategoria;
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adicionar Produtos'),
       ),
       
       // --- 1. O CARDÁPIO RÁPIDO (GRID) ---
-      body: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, childAspectRatio: 0.85, crossAxisSpacing: 12, mainAxisSpacing: 12,
-        ),
-        itemCount: produtos.length,
-        itemBuilder: (context, index) {
-          final produto = produtos[index];
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () async {
-                // 1. Gera um ID único para este novo produto
-                final String novoId = const Uuid().v4();
-                
-                // 2. Salva no Banco de Dados Local!
-                final db = await BancoLocal.bancoDeDados;
-                await db.insert('produtos', {
-                  'id': novoId,
-                  'lista_id': widget.listaId,
-                  'nome': produto['nome'],
-                  'categoria': produto['categoria'],
-                  'caminho_foto_local': produto['foto'], 
-                  'quantidade': '1',
-                  'preco': 0.00,
-                  'comprado': 0 // 0 significa 'falso' no SQLite
-                });
-
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${produto['nome']} adicionado!'), backgroundColor: Colors.green, duration: const Duration(seconds: 1)));
-                }
-              },
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(child: Padding(padding: const EdgeInsets.all(12.0), child: Image.asset(produto['foto']!, fit: BoxFit.contain, errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 50, color: Colors.grey)))),
-                  Padding(padding: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 8.0), child: Text(produto['nome']!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-                  Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 8), decoration: const BoxDecoration(color: Color(0xFF1565C0), borderRadius: BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16))), child: const Icon(Icons.add_shopping_cart, color: Colors.white))
-                ],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Buscar produto',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
               ),
+              onChanged: (valor) {
+                setState(() => _textoBusca = valor);
+              },
             ),
-          );
-        },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            child: DropdownButtonFormField<String>(
+              initialValue: _categoriaSelecionada,
+              decoration: const InputDecoration(
+                labelText: 'Categoria',
+                border: OutlineInputBorder(),
+              ),
+              items: _categorias
+                  .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                  .toList(),
+              onChanged: (valor) {
+                if (valor == null) return;
+                setState(() => _categoriaSelecionada = valor);
+              },
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.85,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: produtosFiltrados.length,
+              itemBuilder: (context, index) {
+                final produto = produtosFiltrados[index];
+                final caminhoFoto =
+                    produto['foto'] ?? CatalogoLocal.caminhoFotoPadrao(produto['nome'] ?? '');
+                return Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () async {
+                      final String novoId = const Uuid().v4();
+
+                      final db = await BancoLocal.bancoDeDados;
+                      await db.insert('produtos', {
+                        'id': novoId,
+                        'lista_id': widget.listaId,
+                        'nome': produto['nome'],
+                        'categoria': produto['categoria'],
+                        'caminho_foto_local': caminhoFoto,
+                        'quantidade': '1',
+                        'preco': 0.00,
+                        'comprado': 0
+                      });
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${produto['nome']} adicionado!'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.asset(
+                                caminhoFoto,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.shopping_bag,
+                                  size: 50,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 8.0),
+                          child: Text(
+                            produto['nome']!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1565C0),
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(16),
+                            ),
+                          ),
+                          child: const Icon(Icons.add_shopping_cart, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
 
       // --- 2. O BOTÃO PARA PRODUTOS EXCLUSIVOS DO USUÁRIO ---

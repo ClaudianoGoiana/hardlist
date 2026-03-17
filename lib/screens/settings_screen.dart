@@ -1,6 +1,6 @@
-// Arquivo: lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
-import '../main.dart'; // Importamos o main.dart para poder usar o Rádio (themeNotifier)
+import '../main.dart'; // Para acessar themeNotifier global
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

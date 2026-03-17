@@ -1,0 +1,826 @@
+================================================================================
+                         DOCUMENTACAO TECNICA
+                     MODULO DE PERSISTENCIA - banco_local.dart
+================================================================================
+
+PROJECTO: HardList - Aplicacao de Listas de Compras
+ARQUIVO:  lib/dados/banco_local.dart
+DATA:     17 de Março de 2026
+VERSAO:   2.0
+
+================================================================================
+RESUMO EXECUTIVO
+================================================================================
+
+O arquivo banco_local.dart é o gerenciador central de persistência de dados
+do HardList. Implementa padrão Singleton com acesso configurável a:
+
+  • Base de dados SQLite local (dados offline)
+  • Supabase PostgreSQL remoto (compartilhamento entre usuários)
+  • Cache local de listas sincronizadas
+
+Contém 12 métodos públicos organizados em 4 seções funcionais.
+
+================================================================================
+1. ARQUITETURA GERAL
+================================================================================
+
+PADRÃO DE DESIGN:  Singleton
+INICIALIZACAO:     Lazy loading (apenas quando primeiro acesso)
+CICLO DE VIDA:     App-wide (permanece aberto na sessão)
+PLATAFORMAS:       Android, iOS, Windows, Linux, macOS
+
+LINGUAGEM:         Dart / Flutter
+DEPENDENCIAS:      sqflite_common_ffi, supabase_flutter, uuid
+
+VERSAO DO BANCO:   2 (com suporte a histórico)
+
+================================================================================
+2. ESTRUTURA DE DADOS
+================================================================================
+
+O banco possui 4 tabelas principais:
+
+2.1 TABELA: listas
+    Propósito: Armazenar listas de compras do usuário
+    Tipo:      SQLite Local
+    
+    Campos:
+      id       TEXT PRIMARY KEY  - UUID único gerado pelo app
+      nome     TEXT              - Nome da lista (ex: "Supermercado")
+    
+    Exemplo:
+      id: 'a1b2c3d4-e5f6-...'
+      nome: 'Supermercado'
+
+    Relacionamentos:
+      - Criação: ListScreen
+      - Referenciada por: produtos (1:N)
+      - Referenciada por: histórico (1:N)
+
+---
+
+2.2 TABELA: produtos
+    Propósito: Produtos adicionados às listas
+    Tipo:      SQLite Local
+    
+    Campos:
+      id                  TEXT PRIMARY KEY
+      lista_id            TEXT FK         - Referência a qual lista
+      nome                TEXT            - Nome produto (ex: "Leite Integral")
+      categoria           TEXT            - Categoria (ex: "Frios e Laticínios")
+      quantidade          TEXT            - Quantidade (ex: "2", "1kg")
+      preco               REAL            - Preço unitário em reais
+      caminho_foto_local  TEXT (nullable) - Path local da imagem (removido assets)
+      comprado            INTEGER         - Status (0=não, 1=sim)
+    
+    Exemplo:
+      id: 'p1p2p3p4-...'
+      lista_id: 'a1b2c3d4-...'
+      nome: 'Leite Integral 1L'
+      categoria: 'Frios e Laticínios'
+      quantidade: '2'
+      preco: 5.50
+      comprado: 1
+
+    Origem: CatalogoLocal (100+ produtos pré-carregados)
+    Relacionamento: Muitos para Um com listas (DELETE CASCADE)
+
+---
+
+2.3 TABELA: historico
+    Propósito: Snapshots de compras finalizadas
+    Tipo:      SQLite Local
+    Versão:    Adicionada na v2
+    
+    Campos:
+      id             TEXT PRIMARY KEY
+      lista_id       TEXT FK         - ID da lista comprada
+      nome           TEXT            - Nome da lista no momento
+      data           TEXT            - ISO8601 timestamp
+      valor          REAL            - Valor total gasto
+      produtos_json  TEXT            - JSON array dos produtos
+    
+    Exemplo:
+      id: 'h1h2h3h4-...'
+      lista_id: 'a1b2c3d4-...'
+      nome: 'Supermercado'
+      data: '2026-03-17T15:30:00.000Z'
+      valor: 152.50
+      produtos_json: '[
+        {"nome":"Leite","quantidade":"2","preco":5.50,"subtotal":11.00},
+        {"nome":"Pão","quantidade":"1","preco":3.00,"subtotal":3.00}
+      ]'
+
+    Proposito: Registro permanente de gastos
+    Usado por: HistoryScreen, HistoryDetailScreen, ExpensesScreen
+    Polícas: Nenhuma RLS (dados locais)
+
+---
+
+2.4 TABELA: listas_cloud
+    Propósito: Cache local de listas baixadas de outros usuários
+    Tipo:      SQLite Local
+    
+    Campos:
+      id                      TEXT PRIMARY KEY
+      lista_id                TEXT            - Referência
+      nome                    TEXT            - Nome da lista
+      data_compartilhamento   TEXT            - ISO8601 timestamp
+      usuario_id              TEXT            - ID de quem compartilhou
+      produtos_json           TEXT            - JSON dos produtos
+    
+    Origem: Downloaded via fazerDownloadLista() de Supabase
+    Sincronização: ← Tabela Supabase "listas_compartilhadas"
+    Tipo de Acesso: Leitura/Visualização
+    Relacionamento: Muitos para Um com listas (DELETE CASCADE)
+
+================================================================================
+3. FLUXOS DE DADOS
+================================================================================
+
+FLUXO A: Compra Local
+─────────────────────────────────────────────────────────────────────────────
+
+1. Usuário cria lista (ListScreen)
+   → INSERT em tabela "listas"
+
+2. Usuário adiciona produtos (HomeScreen)
+   → INSERT em tabela "produtos"
+
+3. Usuário marca produtos como comprados (checkbox)
+   → UPDATE campo "comprado" = 1
+
+4. Usuário clica "Finalizar Compra"
+   → Calcula total (SUM de subtotais)
+
+5. adicionarHistorico() cria snapshot
+   → INSERT em tabela "historico"
+   → produtos_json contém snapshot de todos os produtos
+
+6. SQLite automatically DELETE produtos
+   → FOREIGN KEY CASCADE delete acionado
+
+7. SQLite DELETE da lista em "listas"
+
+8. HistoryScreen exibe compra
+   → SELECT FROM "historico" ORDER BY data DESC
+
+
+FLUXO B: Compartilhamento (Usuário A)
+─────────────────────────────────────────────────────────────────────────────
+
+1. HomeScreen: Usuário A clica "Compartilhar"
+
+2. compartilharLista() insere em "listas_cloud" (local)
+   → Cópia de segurança local
+
+3. compartilharListaNaCloud() INSERT em Supabase
+   → await supabase.from('listas_compartilhadas').insert({...})
+   → Tabela remota: "listas_compartilhadas"
+   → Campos: id, lista_id, nome, usuario_id, criador_id, produtos_json, data_compartilhamento
+
+4. Supabase RLS Policy valida: usuario_id = auth.uid()
+
+5. Lista inserida em Supabase
+   → Visível para OUTROS usuários
+
+
+FLUXO C: Recebimento (Usuário B)
+─────────────────────────────────────────────────────────────────────────────
+
+1. ReceivedListsScreen abre
+
+2. buscarListasCompartilhadasNuvem() executa SELECT
+   → SELECT * FROM "listas_compartilhadas"
+   → WHERE usuario_id != auth.uid() (apenas de OUTROS)
+   → ORDER BY data_compartilhamento DESC
+
+3. HTTP/REST request para Supabase
+
+4. Supabase RLS Policy valida: usuario_id != auth.uid()
+
+5. Supabase retorna List<Map> JSON
+   → ReceivedListsScreen exibe na ListView
+
+6. Usuário B clica "Baixar"
+
+7. fazerDownloadLista() insere em "listas_cloud"
+   → INSERT em tabela local "listas_cloud"
+
+8. Lista agora disponível offline para Usuário B
+
+
+FLUXO D: Deleção (Usuário A)
+─────────────────────────────────────────────────────────────────────────────
+
+1. Usuário A clica "Deletar"
+
+2. removerListaDaNuvem() executa DELETE em Supabase
+   → DELETE FROM "listas_compartilhadas" WHERE id = ?
+
+3. Supabase RLS Policy valida: criador_id = auth.uid()
+
+4. Registro deletado
+
+5. Próxima vez que Usuário B busca
+   → Lista não aparece mais (foi deletada)
+
+================================================================================
+4. METODOS PUBLICOS (12 Total)
+================================================================================
+
+GETTER: bancoDeDados
+───────────────────────────────────────────────────────────────────────────
+Acesso: static Future<Database>
+Padrão: Lazy loading singleton
+
+Descrição:
+  Fornece instância global do banco de dados. Se não inicializado, chama
+  _inicializarBanco() automaticamente.
+
+Uso:
+  final db = await BancoLocal.bancoDeDados;
+  final resultado = await db.query('listas');
+
+Erros:
+  - Exception se falhar ao abrir arquivo
+
+
+SEÇÃO 1: HISTÓRICO DE COMPRAS
+───────────────────────────────────────────────────────────────────────────
+
+Método: adicionarHistorico()
+Type:    Future<void>
+Padrão:  Async insert com validação sideline
+
+Parâmetros:
+  String id              - UUID único (const Uuid().v4())
+  String listaId        - ID da lista comprada
+  String nome           - Nome da lista
+  String data           - ISO8601 (DateTime.now().toIso8601String())
+  double valor          - Total gasto
+  String produtosJson   - JSON.stringify(produtos)
+
+Retorno: Nenhum (apenas persiste dados)
+
+Chamado por: HomeScreen._finalizarCompra()
+
+Exemplo:
+  await BancoLocal.adicionarHistorico(
+    id: const Uuid().v4(),
+    listaId: widget.listaId,
+    nome: widget.listaNome,
+    data: DateTime.now().toIso8601String(),
+    valor: 152.50,
+    produtosJson: jsonEncode(_produtos),
+  );
+
+---
+
+Método: listarHistorico()
+Type:    Future<List<Map<String, dynamic>>>
+Padrão:  SELECT com ORDER BY
+
+Retorno:
+  List de maps com campos: id, lista_id, nome, data, valor, produtos_json
+  Ordenado por: data DESC (mais recente primeiro)
+
+Estrutura retornada:
+  [
+    {
+      'id': 'uuid-123',
+      'lista_id': 'lista-456',
+      'nome': 'Supermercado',
+      'data': '2026-03-17T15:30:00.000Z',
+      'valor': 125.50,
+      'produtos_json': '[...]' (string JSON, precisa jsonDecode())
+    }
+  ]
+
+Chamado por: HistoryScreen
+
+Exemplo:
+  final historico = await BancoLocal.listarHistorico();
+  for (var compra in historico) {
+    final produtos = jsonDecode(compra['produtos_json']);
+    print('${compra["nome"]}: R\$ ${compra["valor"]}');
+  }
+
+
+SEÇÃO 2: CACHE LOCAL (listas_cloud)
+───────────────────────────────────────────────────────────────────────────
+
+Método: compartilharLista()
+Type:    Future<void>
+Padrão:  INSERT local
+
+Parâmetros:
+  String id
+  String listaId
+  String nome
+  String usuarioId
+  String produtosJson
+
+Descrição:
+  Salva cópia local em "listas_cloud" (passo 1 do compartilhamento)
+
+Chamado por: HomeScreen._compartilharLista() [passo 1]
+
+---
+
+Método: listarListasCloud()
+Type:    Future<List<Map<String, dynamic>>>
+
+Retorno: Todas as listas no cache (ordenadas por data DESC)
+
+Chamado por: CloudScreen
+
+---
+
+Método: removerListaCloud()
+Type:    Future<void>
+
+Parâmetros:
+  String id
+  String usuarioId (validação)
+
+Descrição: Remove lista do cache local
+
+Chamado por: CloudScreen, ReceivedListsScreen
+
+---
+
+Método: atualizarListaCloud()
+Type:    Future<void>
+
+Parâmetros:
+  String id
+  String nome
+  String produtosJson
+  String usuarioId (validação)
+
+Descrição: Modifica lista existente no cache
+
+
+SEÇÃO 3: CLOUD SYNC (Supabase)
+───────────────────────────────────────────────────────────────────────────
+
+Método: compartilharListaNaCloud()
+Type:    Future<void>
+Padrão:  INSERT em Supabase com erro handling
+
+Parâmetros:
+  String id
+  String listaId
+  String nome
+  String usuarioId
+  String produtosJson
+
+Descrição:
+  INSERT em tabela Supabase "listas_compartilhadas".
+  Chamado após compartilharLista() local (passo 2).
+
+Tabela Supabase:
+  Campos: id, lista_id, nome, usuario_id, criador_id, produtos_json,
+          data_compartilhamento
+  RLS Policy: INSERT requer usuario_id = auth.uid()
+
+Chamado por: HomeScreen._compartilharLista() [passo 2]
+
+Erro handling:
+  try/catch com print() para debugging
+  Relança exception (rethrow)
+
+Exemplo:
+  try {
+    final usuario = Supabase.instance.client.auth.currentUser;
+    await BancoLocal.compartilharListaNaCloud(
+      id: const Uuid().v4(),
+      listaId: widget.listaId,
+      nome: widget.listaNome,
+      usuarioId: usuario.id,
+      produtosJson: jsonEncode(_produtos),
+    );
+  } catch (e) {
+    print('Erro: $e');
+  }
+
+---
+
+Método: buscarListasCompartilhadasNuvem()
+Type:    Future<List<Map<String, dynamic>>>
+Padrão:  SELECT com .neq() filter
+
+Descrição:
+  Busca todas as listas compartilhadas por OUTROS usuários.
+  Filtra com .neq('usuario_id', usuarioAtual.id).
+
+Retorno:
+  List de maps ou [] se erro (não lança exception)
+  Campos: id, lista_id, nome, usuario_id, criador_id, produtos_json,
+          data_compartilhamento
+
+Chamado por: ReceivedListsScreen
+
+Erro handling:
+  Retorna [] vazio se erro (não quebra UI)
+  Log via print()
+
+Exemplo:
+  final listas = await BancoLocal.buscarListasCompartilhadasNuvem();
+  for (var lista in listas) {
+    print('${lista["nome"]} - De: ${lista["usuario_id"]}');
+  }
+
+---
+
+Método: fazerDownloadLista()
+Type:    Future<void>
+Padrão:  INSERT em listas_cloud local
+
+Parâmetros:
+  String id
+  String listaId
+  String nome
+  String usuarioId
+  String produtosJson
+
+Descrição:
+  Insere em "listas_cloud" após download de Supabase.
+  Torna lista disponível offline.
+
+Chamado por: ReceivedListsScreen._fazerDownload()
+
+Exemplo:
+  await BancoLocal.fazerDownloadLista(
+    id: lista['id'],
+    listaId: lista['lista_id'],
+    nome: lista['nome'],
+    usuarioId: lista['usuario_id'],
+    produtosJson: lista['produtos_json'],
+  );
+
+---
+
+Método: atualizarListaNaCloud()
+Type:    Future<void>
+Padrão:  UPDATE em Supabase
+
+Parâmetros:
+  String id
+  String nome
+  String produtosJson
+
+Descrição:
+  UPDATE em tabela Supabase "listas_compartilhadas".
+  Apenas criador consegue (RLS policy: criador_id = auth.uid()).
+
+---
+
+Método: removerListaDaNuvem()
+Type:    Future<void>
+Padrão:  DELETE em Supabase
+
+Parâmetros:
+  String id
+
+Descrição:
+  DELETE em tabela Supabase "listas_compartilhadas".
+  Apenas criador consegue (RLS policy: criador_id = auth.uid()).
+
+Chamado por: ReceivedListsScreen._remover()
+
+Exemplo:
+  try {
+    await BancoLocal.removerListaDaNuvem(lista['id']);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Removido'))
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro: $e'))
+    );
+  }
+
+================================================================================
+5. METODOS PRIVADOS
+================================================================================
+
+Método: _inicializarBanco() [Privado]
+───────────────────────────────────────────────────────────────────────────
+Chamado por: bancoDeDados getter (primeira vez)
+
+Responsabilidades:
+  1. Inicializa FFI para plataformas desktop (Windows/Linux/macOS)
+  2. Localiza pasta de dados do app (getDatabasesPath())
+  3. Abre (ou cria) arquivo hardlist_offline.db
+  4. Define versão = 2
+  5. Registra callbacks onCreate e onUpgrade
+
+Versioning:
+  onCreate (primeira vez):
+    Executa _criarTabelas() para novo banco vazio
+
+  onUpgrade (atualização):
+    if (oldVersion < 2) {
+      CREATE TABLE historico se não existir
+    }
+
+---
+
+Método: _criarTabelas() [Privado]
+───────────────────────────────────────────────────────────────────────────
+Chamado por: _inicializarBanco() em onCreate
+
+Cria 4 tabelas:
+  1. listas (id, nome)
+  2. produtos (id, lista_id FK, nome, categoria, quantidade, preco, foto, comprado)
+  3. historico (id, lista_id FK, nome, data, valor, produtos_json)
+  4. listas_cloud (id, lista_id FK, nome, data_compartilhamento, usuario_id, produtos_json)
+
+Foreign keys:
+  - produtos.lista_id → listas.id ON DELETE CASCADE
+  - historico.lista_id → listas.id ON DELETE SET NULL
+  - listas_cloud.lista_id → listas.id ON DELETE CASCADE
+
+================================================================================
+6. SEGURANCA E AUTORIZACAO
+================================================================================
+
+AUTENTICACAO:
+  Supabase auth com JWT token
+  Usuário faz login via LoginScreen
+  Cada request HTTP inclui Authorization header
+
+RLS POLICIES (Supabase):
+  Tabela: listas_compartilhadas
+
+  Policy 1 - SELECT:
+    Condição: usuario_id != auth.uid()
+    Efeito:   Usuário vê apenas listas de OUTROS
+    Código:   .neq('usuario_id', usuarioAtual.id)
+
+  Policy 2 - INSERT:
+    Condição: usuario_id = auth.uid() AND criador_id = auth.uid()
+    Efeito:   Usuário só pode compartilhar suas próprias
+    Código:   compartilharListaNaCloud() valida (app);
+              Supabase RLS valida (database)
+
+  Policy 3 - UPDATE:
+    Condição: criador_id = auth.uid()
+    Efeito:   Apenas criador consegue modificar
+    Código:   atualizarListaNaCloud()
+
+  Policy 4 - DELETE:
+    Condição: criador_id = auth.uid()
+    Efeito:   Apenas criador consegue deletar
+    Código:   removerListaDaNuvem()
+
+VALIDACOES:
+  App-side:  Validação de campos, formato de UUID
+  DB-side:   RLS policies, foreign key constraints, NOT NULL
+
+ERROS COMUNS:
+  "permission denied"       → RLS policy rejeitou
+  "relação não existe"      → Tabela Supabase não criada
+  "usuario_id NULL"         → Usuário não autenticado
+
+================================================================================
+7. MIGRACAO E VERSIONAMENTO
+================================================================================
+
+VERSAO 1 (Original):
+  Tabelas: listas, produtos, listas_cloud
+  Sem histórico de compras
+
+VERSAO 2 (Atual):
+  Adição: Tabela histórico
+  Migration em onUpgrade:
+    if (oldVersion < 2) {
+      CREATE TABLE historico (...)
+    }
+
+COMPATIBILIDADE:
+  Usuários com banco v1 são migrate automaticamente ao abrir app
+  Dados existentes preserved (não há delete)
+
+ARQUIVO:
+  ${app_data_path}/hardlist_offline.db
+  Size: ~100KB (com 100+ listas e histórico)
+
+================================================================================
+8. DEBUGGING E TROUBLESHOOTING
+================================================================================
+
+ERRO: "no such table: listas_compartilhadas"
+  Causa:  Tabela Supabase não foi criada
+  Solução: Execute migração SQL em Supabase console
+           Veja SUPABASE_QUICK_START.md
+
+ERRO: "permission denied"
+  Causa:  RLS policy rejeitou acesso
+  Solução: 1. Verifique se usuário está autenticado
+           2. Verifique se usuario_id = auth.uid()
+           3. Verifique se criador_id = auth.uid() para UPDATE/DELETE
+
+ERRO: "FOREIGN KEY constraint failed"
+  Causa:  Tentou inserir lista_id que não existe
+  Solução: Certifique que lista foi criada antes de adicionar produto
+
+ERRO: "relação historico não existe"
+  Causa:  Banco foi criado com versão 1, histórico foi adicionado v2
+  Solução: App migra automaticamente no próximo launch
+
+LOG MESSAGES:
+  Todos métodos Supabase têm print() para debugging
+  Procure em console por:
+    "Erro ao compartilhar lista na cloud: ..."
+    "Erro ao buscar listas compartilhadas: ..."
+
+INSPECAO MANUAL:
+  SQLite: Use DB Browser ou Android Studio
+          Arquivo: hardlist_offline.db em app data directory
+
+  Supabase: https://app.supabase.com
+           Database → Tables → listas_compartilhadas
+
+================================================================================
+9. PERFORMANCE E OTIMIZACAO
+================================================================================
+
+INDICES:
+  Supabase tem índices em:
+    - usuario_id (busca rápida de listas de usuário)
+    - criador_id (deleção rápida de suas listas)
+    - data_compartilhamento (ordenação rápida)
+  Criados via migration SQL
+
+LAZY LOADING:
+  Banco não abre até primeiro acesso (getter bancoDeDados)
+  Reduz memória se app não usa offline features
+
+CACHE LOCAL:
+  listas_cloud armazena snapshot para offline access
+  Download é cópia, não referência (não sincroniza mudanças)
+
+BATCH OPERATIONS:
+  Para múltiplas inserts, use db.batch()
+  Mais rápido que inserts individuais
+
+QUERIES EFICIENTES:
+  Sempre ordene no DB (ORDER BY) não na app
+  Sempre filtre no DB (WHERE) não na app
+  Use índices para colunas frequentemente filtradas
+
+================================================================================
+10. INTEGRACAO COM TELAS
+================================================================================
+
+ListScreen:
+  └─ Cria lista (via insert SQLite direto)
+
+HomeScreen:
+  ├─ adicionarHistorico() ao finalizar compra
+  ├─ compartilharLista() [passo 1]
+  └─ compartilharListaNaCloud() [passo 2]
+
+HistoryScreen:
+  └─ listarHistorico() ao carregar
+
+HistoryDetailScreen:
+  └─ Recebe produtos_json (jsonDecode para exibir)
+
+ExpensesScreen:
+  └─ listarHistorico() para calcular gastos por categoria
+
+ReceivedListsScreen:
+  ├─ buscarListasCompartilhadasNuvem() ao abrir
+  ├─ fazerDownloadLista() ao baixar
+  └─ removerListaDaNuvem() ao deletar
+
+CloudScreen:
+  ├─ listarListasCloud()
+  └─ Sincronização de compartilhamentos
+
+================================================================================
+11. RESUMO DE CAMPOS POR TABELA
+================================================================================
+
+LISTAS:
+  id (TEXT PK)
+  nome (TEXT)
+
+PRODUTOS:
+  id (TEXT PK)
+  lista_id (TEXT FK)
+  nome (TEXT)
+  categoria (TEXT)
+  quantidade (TEXT)
+  preco (REAL)
+  caminho_foto_local (TEXT nullable)
+  comprado (INTEGER 0/1)
+
+HISTORICO:
+  id (TEXT PK)
+  lista_id (TEXT FK nullable)
+  nome (TEXT)
+  data (TEXT ISO8601)
+  valor (REAL)
+  produtos_json (TEXT JSON)
+
+LISTAS_CLOUD:
+  id (TEXT PK)
+  lista_id (TEXT FK)
+  nome (TEXT)
+  data_compartilhamento (TEXT ISO8601)
+  usuario_id (TEXT)
+  produtos_json (TEXT JSON)
+
+LISTAS_COMPARTILHADAS (Supabase):
+  id (TEXT PK)
+  lista_id (TEXT)
+  nome (TEXT)
+  usuario_id (UUID FK)
+  criador_id (UUID FK)
+  produtos_json (TEXT JSON)
+  data_compartilhamento (TIMESTAMP)
+  created_at (TIMESTAMP)
+  updated_at (TIMESTAMP)
+
+================================================================================
+APENDICE A: EXEMPLO DE IMPLEMENTACAO COMPLETA
+================================================================================
+
+Exemplo: Compartilhar Lista (Fluxo Completo)
+
+// Em HomeScreen._compartilharLista()
+
+try {
+  // 1. Obter usuário autenticado
+  final usuario = Supabase.instance.client.auth.currentUser;
+  if (usuario == null) throw Exception('Usuário não autenticado');
+  
+  // 2. Gerar UUID
+  final id = const Uuid().v4();
+  
+  // 3. Serializar produtos
+  final produtosJson = jsonEncode(_produtos);
+  
+  // 4. Salvar localmente
+  await BancoLocal.compartilharLista(
+    id: id,
+    listaId: widget.listaId,
+    nome: widget.listaNome,
+    usuarioId: usuario.id,
+    produtosJson: produtosJson,
+  );
+  
+  // 5. Sincronizar com cloud
+  await BancoLocal.compartilharListaNaCloud(
+    id: id,
+    listaId: widget.listaId,
+    nome: widget.listaNome,
+    usuarioId: usuario.id,
+    produtosJson: produtosJson,
+  );
+  
+  // 6. Feedback ao usuário
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Lista compartilhada com sucesso!'))
+  );
+  
+} catch (e) {
+  print('Erro ao compartilhar: $e');
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Erro: $e'))
+  );
+}
+
+================================================================================
+APENDICE B: CHECKLIST DE COMPREENSAO
+================================================================================
+
+Após ler este documento, você deve conseguir:
+
+  [ ] Explicar o que faz banco_local.dart em 1 parágrafo
+  [ ] Desenhar diagrama das 4 tabelas
+  [ ] Descrever os 4 fluxos principais (compra, compartilhamento, recebimento, deleção)
+  [ ] Listar todos os 12 métodos públicos
+  [ ] Explicar diferença entre compartilharLista() e compartilharListaNaCloud()
+  [ ] Entender o que é RLS e por que é importante
+  [ ] Saber quando usar cada método
+  [ ] Implementar um novo método que usa o banco
+  [ ] Debugar erros comuns
+  [ ] Descrever fluxo de sincronização cloud
+
+Se conseguir todos ✓, você domina a persistência do HardList!
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================
+
+Documento gerado: 17 de Março de 2026
+Versão: 2.0
+Formato: Texto plano (apropriado para impressão)
+Páginas estimadas: 10-12 páginas A4 em fonte 11pt

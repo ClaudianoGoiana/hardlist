@@ -1,76 +1,46 @@
-// Arquivo: lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // <-- NOVO: Importamos o Supabase
-import 'screens/lists_screen.dart'; 
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'theme_notifier.dart';
+import 'screens/list_screen.dart'; // Verifique se o caminho da pasta é Screen ou screens
 
-final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+// Declare o themeNotifier globalmente
+final themeNotifier = ThemeNotifier();
 
-// <-- MUDANÇA: O main agora é "Future" e "async" para poder esperar o banco de dados ligar
-Future<void> main() async {
-  // Isto é obrigatório quando usamos coisas como o Supabase antes do runApp
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- MÁGICA PARA O BANCO DE DADOS FUNCIONAR NO WINDOWS ---
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  } 
-
-  // --- LIGAÇÃO AO SUPABASE ---
   await Supabase.initialize(
-    url: 'https://zlfhxcksweffglpjelci.supabase.co', // Exemplo: https://abxyz...supabase.co
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsZmh4Y2tzd2VmZmdscGplbGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTEzNjYsImV4cCI6MjA4OTA4NzM2Nn0.7uTTIkA0FwPOv2XIWhXMBynmXEFW3ovFucooL1XuRsU', // Aquele texto gigante
+    url: 'https://zlfhxcksweffglpjelci.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsZmh4Y2tzd2VmZmdscGplbGNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTEzNjYsImV4cCI6MjA4OTA4NzM2Nn0.7uTTIkA0FwPOv2XIWhXMBynmXEFW3ovFucooL1XuRsU',
   );
 
-  runApp(const HardListApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => themeNotifier,
+      child: const MyApp(),
+    ),
+  );
 }
 
-class HardListApp extends StatelessWidget {
-  const HardListApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-// ... (O resto do código para baixo continua exatamente igual!) ...
-      valueListenable: themeNotifier,
-      builder: (context, currentMode, child) {
-        
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'HardList',
-          
-          // --- TEMA CLARO Padrão ---
-          theme: ThemeData(
-            primaryColor: const Color(0xFF1565C0),
-            scaffoldBackgroundColor: Colors.white,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFF1565C0),
-              foregroundColor: Colors.white, // Cor do texto e ícones da AppBar
+    // O App fica "escutando" o rádio do tema aqui
+    final themeNotifier = Provider.of<ThemeNotifier>(context);
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'HardList',
+      theme: themeNotifier.value == ThemeMode.dark
+          ? ThemeData.dark(useMaterial3: true) 
+          : ThemeData(
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+              useMaterial3: true,
             ),
-            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
-          ),
-
-          // --- TEMA ESCURO ---
-          darkTheme: ThemeData.dark().copyWith(
-            primaryColor: const Color(0xFF1565C0),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFF0D47A1), // Um azul ainda mais escuro para o topo
-              foregroundColor: Colors.white,
-            ),
-            // O fundo preto e os textos brancos o Flutter já faz sozinho no ThemeData.dark()
-          ),
-
-          // 3. A Mágica: Ele muda de claro para escuro dependendo do que o rádio falar!
-          themeMode: currentMode, 
-
-          // MUDAMOS AQUI: Tiramos o LoginScreen() e colocamos o HomeScreen()
-          home: const ListsScreen(),
-        ); // Fim do MaterialApp
-        
-      }, // Fim do builder
-    ); // Fim do ValueListenableBuilder
-  } // Fim do build
-} // Fim da classe
+      home: const ListScreen(),
+    );
+  }
+}

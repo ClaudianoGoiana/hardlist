@@ -59,3 +59,22 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Seguranca / segredos
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+*.jks
+*.keystore
+*.p12
+
+# Arquivos locais e temporarios do Supabase CLI
+supabase/.temp/
+
+# Config local de IDE (pode conter chaves)
+.vscode/settings.json
+
+# Artefatos locais compactados
+*.rar

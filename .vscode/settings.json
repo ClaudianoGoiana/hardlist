@@ -1,5 +1,10 @@
 {
     "cmake.sourceDirectory": "F:/Projeto/hardlist/linux",
     "GeminiBot.model": "gemini-1.5-pro",
-    "CodeGPT.apiKey": "Anthropic"
+    "CodeGPT.apiKey": "Anthropic",
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "deno.enable": true,
+    "deno.enablePaths": [
+        "supabase/functions"
+    ]
 }

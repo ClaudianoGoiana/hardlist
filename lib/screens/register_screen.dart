@@ -98,8 +98,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- 1. Ícone de Cadastro ---
-              const Icon(Icons.person_add_alt_1, size: 80, color: Color(0xFF1565C0)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.shopping_cart_checkout,
+                      size: 40,
+                      color: Color(0xFF1565C0),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'HardList',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1565C0),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               const Text(
                 'Crie seu acesso',

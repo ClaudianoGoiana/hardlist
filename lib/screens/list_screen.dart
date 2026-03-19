@@ -55,40 +55,32 @@ class _ListScreenState extends State<ListScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // CABEÇALHO COM FEEDBACK DE LIMITE
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: limiteAtingido
-                        ? Colors.red.shade900.withOpacity(0.15)
-                        : Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey.shade800
-                            : Colors.blue.shade50,
-                    border: Border(bottom: BorderSide(color: Colors.grey.shade700)),
-                  ),
-                  child: Column(
+                // LOGO DO APP
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            limiteAtingido ? 'Limite Atingido!' : 'Uso do Aparelho:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold, 
-                              color: limiteAtingido ? Colors.red : Colors.blue.shade900
-                            ),
-                          ),
-                          Text(
-                            '$quantidadeDeListas / 20 Listas', 
-                            style: TextStyle(fontWeight: FontWeight.bold, color: limiteAtingido ? Colors.red : Colors.black),
-                          ),
-                        ],
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.shopping_cart_checkout,
+                          size: 40,
+                          color: Color(0xFF1565C0),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: quantidadeDeListas / 20,
-                        backgroundColor: Colors.grey.shade300,
-                        color: limiteAtingido ? Colors.red : Colors.blue,
+                      const SizedBox(width: 12),
+                      const Text(
+                        'HardList',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1565C0),
+                        ),
                       ),
                     ],
                   ),
@@ -97,12 +89,12 @@ class _ListScreenState extends State<ListScreen> {
                 Expanded(
                   child: _listas.isEmpty
                       ? const Center(
-                          child: Text('Toque no + para criar sua primeira lista.', 
+                          child: Text('Criar lista', 
                           style: TextStyle(color: Colors.grey)),
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.only(top: 8, bottom: 80),
-                          itemCount: quantidadeDeListas,
+                          itemCount: _listas.length,
                           itemBuilder: (context, index) {
                             final lista = _listas[index];
                             return Card(

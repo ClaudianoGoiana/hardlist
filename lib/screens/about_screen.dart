@@ -17,29 +17,32 @@ class AboutScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Ícone ou Logo do App
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1565C0).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.shopping_cart_checkout, // Ícone provisório do app
-                  size: 80,
-                  color: Color(0xFF1565C0),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.shopping_cart_checkout,
+                      size: 40,
+                      color: Color(0xFF1565C0),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'HardList',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1565C0),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
-              
-              // Nome do App
-              Text(
-                'HardList',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
               
               // Versão
               Text(
@@ -77,6 +80,13 @@ class AboutScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: const Color(0xFF1565C0),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '(83) 99950-5056',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
                 ),
               ),
             ],

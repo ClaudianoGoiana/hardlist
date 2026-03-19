@@ -10,6 +10,30 @@ Este guia explica como configurar o Supabase para ativar o sincronização de li
 
 ## 🚀 Passos para Configuração
 
+### 0. Ativar confirmação de email no Auth
+
+Se você quiser que o Supabase exija confirmação de email antes do login:
+
+1. Vá em **Authentication** no menu lateral do Supabase
+2. Abra **Providers** ou **Sign In / Providers**
+3. Entre na configuração de **Email**
+4. Ative a opção de confirmação de email
+
+Dependendo da versão do painel, o nome pode aparecer como:
+- **Confirm email**
+- **Enable email confirmations**
+- **Require email confirmation**
+
+Com isso ativado:
+- o usuário cria a conta, mas precisa confirmar o email antes de entrar;
+- o app já está preparado para mostrar a mensagem de email não confirmado.
+
+Opcionalmente, revise também:
+- **Site URL**
+- **Redirect URLs**
+
+Se você ainda não usa deep link no app, a confirmação pode abrir no navegador normalmente.
+
 ### 1. Acessar o SQL Editor do Supabase
 
 1. Vá para [app.supabase.com](https://app.supabase.com)

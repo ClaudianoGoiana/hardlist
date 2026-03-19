@@ -1,0 +1,204 @@
+DOCUMENTACAO DO LOGIN - HARDLIST
+
+Data: 18/03/2026
+
+1. OBJETIVO
+
+O modulo de login do HardList permite que o usuario:
+- crie uma conta usando nome, email e senha;
+- confirme o email pelo fluxo do Supabase;
+- entre com email e senha;
+- acesse recursos conectados a nuvem, como listas compartilhadas.
+
+
+2. ARQUITETURA UTILIZADA
+
+O sistema de autenticacao usa Supabase Auth.
+
+Arquivos principais relacionados ao login:
+- lib/screens/login_screen.dart
+- lib/screens/register_screen.dart
+- lib/widgets/app_drawer.dart
+
+Servico externo utilizado:
+- Supabase Auth
+
+
+3. FLUXO DE CADASTRO
+
+Arquivo: lib/screens/register_screen.dart
+
+Campos atuais:
+- nome completo
+- email
+- senha
+- confirmar senha
+
+Validacoes atuais:
+- todos os campos devem ser preenchidos;
+- senha e confirmacao devem ser iguais;
+- senha deve ter pelo menos 6 caracteres.
+
+Ao registrar, o app executa:
+- Supabase.instance.client.auth.signUp(...)
+
+Dados enviados:
+- email
+- password
+- data: {'name': nome}
+
+Observacao importante:
+- o nome do usuario e salvo no metadata do usuario no Supabase, no campo name;
+- esse nome esta sendo usado no app como display name em fluxos da nuvem.
+
+Resultado esperado:
+- conta criada com sucesso;
+- o usuario recebe email de confirmacao;
+- apos criar conta, a tela volta para o login.
+
+
+4. FLUXO DE LOGIN
+
+Arquivo: lib/screens/login_screen.dart
+
+Campos atuais:
+- email
+- senha
+
+Validacao atual:
+- email e senha nao podem estar vazios.
+
+Ao entrar, o app executa:
+- Supabase.instance.client.auth.signInWithPassword(...)
+
+Se o login funcionar:
+- o usuario e redirecionado para a tela de listas;
+- a navegacao atual vai para ListScreen.
+
+Se houver erro:
+- o app mostra mensagem amigavel via SnackBar.
+
+Tratamentos atuais de erro:
+- email nao confirmado;
+- credenciais invalidas;
+- erro generico do login.
+
+
+5. SEGURANCA DAS SENHAS
+
+Estado atual do projeto:
+- a senha NAO e salva no banco local SQLite do app;
+- a senha NAO e armazenada manualmente em nenhuma tabela propria do projeto;
+- o login depende do Supabase Auth.
+
+Na pratica isso significa:
+- o app envia a senha para o Supabase por conexao HTTPS/TLS;
+- o Supabase Auth faz o tratamento seguro da senha no servidor;
+- a senha nao fica exposta em texto puro no banco local do aplicativo.
+
+Importante:
+- em provedores de autenticacao modernos, a senha nao deve ser guardada de forma reversivel;
+- o comportamento esperado e armazenamento por hash seguro no backend.
+
+
+6. DISPLAY NAME DO USUARIO
+
+O nome do usuario usado na interface vem do metadata do Supabase.
+
+Fonte principal:
+- user.userMetadata['name']
+
+Fallback atual em alguns pontos:
+- parte antes do @ do email, quando name nao estiver disponivel.
+
+Uso atual no projeto:
+- drawer do aplicativo;
+- listas compartilhadas na nuvem;
+- listas recebidas.
+
+
+7. RELACAO COM O MODULO CLOUD
+
+A autenticacao e necessaria para:
+- compartilhar listas na nuvem;
+- visualizar listas do proprio usuario;
+- baixar listas publicas de outros usuarios;
+- manter autoria e nome do criador das listas.
+
+Campos relacionados ao autor usados no projeto:
+- usuario_id
+- criador_id
+- criador_nome
+- publica
+
+
+8. COMPORTAMENTO ATUAL DA INTERFACE
+
+Tela de login:
+- usa a identidade visual atual do app;
+- exibe a logo padronizada do HardList;
+- possui campo de senha com ocultacao e botao para mostrar/ocultar.
+
+Tela de cadastro:
+- usa a mesma identidade visual do app;
+- coleta nome, email e senha;
+- envia name para o metadata do Supabase.
+
+
+9. LIMITACOES ATUAIS
+
+No estado atual, o modulo de login ainda nao inclui:
+- recuperacao de senha por tela propria;
+- login com Google ativo em producao;
+- refresh manual de sessao pela interface;
+- pagina dedicada para perfil do usuario;
+- alteracao de nome/senha por tela de configuracao.
+
+
+10. MELHORIAS RECOMENDADAS
+
+Melhorias tecnicas sugeridas:
+- adicionar fluxo de "esqueci minha senha";
+- adicionar tela de perfil com edicao de nome;
+- validar formato de email antes de enviar ao Supabase;
+- melhorar tratamento de erros com mensagens mais objetivas;
+- considerar limitacao de tentativas em fluxos sensiveis;
+- ativar login social apenas quando a configuracao estiver concluida.
+
+Melhorias de UX sugeridas:
+- indicar visualmente quando o email ainda nao foi confirmado;
+- mostrar loader tambem no cadastro em chamadas mais lentas;
+- permitir reenviar email de confirmacao;
+- mostrar requisitos de senha de forma clara antes do envio.
+
+
+11. TESTES MANUAIS RECOMENDADOS
+
+Cadastro:
+- criar conta com nome, email e senha validos;
+- testar senha menor que 6 caracteres;
+- testar senhas diferentes na confirmacao;
+- confirmar recebimento do email de confirmacao.
+
+Login:
+- testar login com credenciais corretas;
+- testar login sem confirmar email;
+- testar login com senha errada;
+- testar login com campos vazios.
+
+Integracao com nuvem:
+- fazer login com um usuario;
+- compartilhar lista publica;
+- verificar se outro usuario consegue ver;
+- compartilhar lista privada;
+- verificar se outro usuario nao consegue ver.
+
+
+12. RESUMO TECNICO
+
+Resumo do modulo atual:
+- autenticacao baseada em Supabase Auth;
+- sem armazenamento local de senha;
+- nome do usuario salvo em metadata como name;
+- login e cadastro ja integrados ao restante do app;
+- base pronta para expansao com perfil, reset de senha e login social.

@@ -1,0 +1,119 @@
+CONFIGURACAO DA EXCLUSAO DE CONTA - HARDLIST
+
+1. OBJETIVO
+
+Permitir que o proprio usuario exclua sua conta de forma segura.
+A exclusao real do usuario no Supabase Auth nao deve ser feita direto pelo app cliente.
+Por isso, o projeto usa uma Edge Function protegida.
+
+IMPORTANTE:
+- o app ja esta pronto para chamar a funcao;
+- o que falta para funcionar de verdade e publicar a funcao no Supabase;
+- sem isso, tocar em "Excluir minha conta" vai gerar erro no aplicativo.
+
+2. ARQUIVO DA FUNCAO
+
+Arquivo criado:
+- supabase/functions/delete-account/index.ts
+
+3. O QUE A FUNCAO FAZ
+
+Quando chamada por um usuario autenticado, a funcao:
+- valida o token do usuario;
+- apaga listas da nuvem relacionadas ao usuario na tabela public.listas;
+- exclui o usuario no Supabase Auth.
+
+4. COMO FAZER O DEPLOY
+
+No Windows deste projeto, use os comandos com npx.
+Nao use "supabase" sozinho se ele nao estiver instalado globalmente.
+
+PASSO 1 - gerar token pessoal do Supabase
+
+Abra no navegador:
+- https://supabase.com/dashboard/account/tokens
+
+Crie um token novo e copie o valor.
+
+PASSO 2 - fazer login no CLI sem modo interativo
+
+No terminal, dentro da pasta do projeto:
+
+npx supabase login --token SEU_TOKEN_AQUI
+
+PASSO 3 - vincular o projeto remoto
+
+npx supabase link --project-ref zlfhxcksweffglpjelci
+
+Se pedir a senha do banco e voce nao tiver agora, pode deixar em branco para continuar.
+
+PASSO 4 - cadastrar a chave service role como secret da funcao
+
+No painel do Supabase, abra:
+- Project Settings
+- Data API ou API Keys
+
+Copie a chave service_role.
+
+Depois rode:
+
+npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=SUA_CHAVE_SERVICE_ROLE --project-ref zlfhxcksweffglpjelci
+
+PASSO 5 - publicar a funcao
+
+npx supabase functions deploy delete-account --no-verify-jwt --project-ref zlfhxcksweffglpjelci
+
+Observacao:
+- o codigo valida o usuario pelo header Authorization;
+- em muitos projetos voce pode preferir manter verify jwt habilitado se sua configuracao estiver pronta;
+- se quiser, esse comando pode ser ajustado depois.
+
+5. VARIAVEIS NECESSARIAS
+
+A Edge Function precisa destas variaveis de ambiente:
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+
+No Supabase, configure em:
+- Project Settings
+- Edge Functions
+- Secrets
+
+Cadastre principalmente:
+- SUPABASE_SERVICE_ROLE_KEY
+
+Observacao:
+- SUPABASE_URL e SUPABASE_ANON_KEY normalmente ja existem no ambiente da funcao;
+- a chave critica aqui e a SUPABASE_SERVICE_ROLE_KEY.
+
+6. TESTE
+
+Depois do deploy:
+- abra o app
+- entre em Configuracoes
+- toque em Excluir minha conta
+- confirme a exclusao
+
+Resultado esperado:
+- listas na nuvem do usuario sao removidas
+- usuario e removido do Auth
+- sessao local e encerrada
+- app volta para a tela de login
+
+7. OBSERVACAO IMPORTANTE
+
+Se a funcao nao estiver implantada, o app exibira erro ao tentar excluir a conta.
+A interface do app ja esta pronta, mas a funcao precisa existir no Supabase para funcionar.
+
+8. RESUMO RAPIDO
+
+Sequencia completa:
+
+1. gerar token em https://supabase.com/dashboard/account/tokens
+2. rodar: npx supabase login --token SEU_TOKEN
+3. rodar: npx supabase link --project-ref zlfhxcksweffglpjelci
+4. rodar: npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=SUA_CHAVE_SERVICE_ROLE --project-ref zlfhxcksweffglpjelci
+5. rodar: npx supabase functions deploy delete-account --no-verify-jwt --project-ref zlfhxcksweffglpjelci
+
+Depois disso, o botao "Excluir minha conta" passa a excluir o usuario do aplicativo.

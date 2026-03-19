@@ -136,19 +136,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: foto != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.asset(
-                                    foto,
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
-                                  ),
-                                )
-                              : const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              foto,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.shopping_bag, size: 40, color: Colors.grey),
+                            ),
+                          ),
                           title: Text(
                             produto['nome']!,
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),

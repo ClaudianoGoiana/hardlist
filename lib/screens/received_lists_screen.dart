@@ -1,7 +1,5 @@
-// Arquivo: lib/screens/received_lists_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../dados/banco_local.dart';
 
 class ReceivedListsScreen extends StatefulWidget {
@@ -12,7 +10,7 @@ class ReceivedListsScreen extends StatefulWidget {
 }
 
 class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
-  late Future<List<Map<String, dynamic>>> _listasCompartilhadasFuture;
+  late Future<List<Map<String, dynamic>>> _listasRecebidasFuture;
 
   @override
   void initState() {
@@ -22,7 +20,7 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
 
   void _carregarListasCompartilhadas() {
     setState(() {
-      _listasCompartilhadasFuture = BancoLocal.buscarListasCompartilhadasNuvem();
+      _listasRecebidasFuture = BancoLocal.listarListasRecebidasLocal();
     });
   }
 
@@ -30,52 +28,14 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
     _carregarListasCompartilhadas();
   }
 
-  Future<void> _fazerDownload(Map<String, dynamic> lista) async {
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Baixando lista...')),
-      );
-
-      await BancoLocal.fazerDownloadLista(
-        id: lista['id'],
-        listaId: lista['lista_id'],
-        nome: lista['nome'],
-        usuarioId: lista['usuario_id'],
-        produtosJson: lista['produtos_json'],
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lista importada com sucesso!'), backgroundColor: Colors.green),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao importar: $e')),
-      );
-    }
-  }
-
-  void _removerListaDaNuvem(String id) async {
-    try {
-      await BancoLocal.removerListaDaNuvem(id);
-      _refresh();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lista removida'), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao remover: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Listas Compartilhadas'),
+        title: const Text('Listas Recebidas'),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _listasCompartilhadasFuture,
+        future: _listasRecebidasFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -85,16 +45,16 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
             return Center(child: Text('Erro: ${snapshot.error}'));
           }
 
-          final listasCompartilhadas = snapshot.data ?? [];
+          final listasRecebidas = snapshot.data ?? [];
 
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: listasCompartilhadas.isEmpty
+            child: listasRecebidas.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Text(
-                        'Nenhuma lista compartilhada disponível.\nOutros usuários compartilham listas aqui no HardList Cloud!',
+                        'Nenhuma lista recebida ainda.\nBaixe listas no HardList Cloud para vê-las aqui.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                       ),
@@ -102,13 +62,16 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: listasCompartilhadas.length,
+                    itemCount: listasRecebidas.length,
                     itemBuilder: (context, index) {
-                      final lista = listasCompartilhadas[index];
+                      final lista = listasRecebidas[index];
                       final nomeLista = lista['nome']?.toString() ?? 'Lista sem nome';
                       final dataCompartilhamento = lista['data_compartilhamento']?.toString() ?? '';
                       final produtosJson = lista['produtos_json']?.toString() ?? '[]';
-                      final criadoPorId = lista['criador_id']?.toString() ?? '';
+                        final criadorNome = (lista['criador_nome']?.toString() ?? '').trim();
+                        final donoLabel = criadorNome.isNotEmpty
+                          ? 'Compartilhada por: $criadorNome'
+                          : 'Compartilhada por: não informado';
 
                       // Conta produtos
                       int qtdProdutos = 0;
@@ -124,31 +87,15 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: Colors.orange.shade100,
-                            child: const Icon(Icons.cloud_download, color: Colors.orange),
+                            child: const Icon(Icons.download_done, color: Colors.orange),
                           ),
                           title: Text(nomeLista, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                            '$qtdProdutos produtos • ${_formatarData(dataCompartilhamento)}',
+                            '$qtdProdutos produtos • Recebida em ${_formatarData(dataCompartilhamento)}\n$donoLabel',
                             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                           ),
-                          trailing: PopupMenuButton(
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                child: const Text('Importar'),
-                                onTap: () {
-                                  _fazerDownload(lista);
-                                },
-                              ),
-                              PopupMenuItem(
-                                child: const Text('Visualizar'),
-                                onTap: () {
-                                  _mostrarDetalhesLista(context, lista);
-                                },
-                              ),
-                            ],
-                          ),
+                          trailing: const Icon(Icons.visibility, color: Colors.grey),
                           onTap: () {
-                            // Abre a lista em modo visualização
                             _mostrarDetalhesLista(context, lista);
                           },
                         ),
@@ -176,6 +123,7 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
   void _mostrarDetalhesLista(BuildContext context, Map<String, dynamic> lista) {
     final nomeLista = lista['nome']?.toString() ?? 'Lista';
     final produtosJson = lista['produtos_json']?.toString() ?? '[]';
+    final criadorNome = (lista['criador_nome']?.toString() ?? '').trim();
 
     List<dynamic> produtos = [];
     if (produtosJson.isNotEmpty) {
@@ -190,28 +138,46 @@ class _ReceivedListsScreenState extends State<ReceivedListsScreen> {
         title: Text(nomeLista),
         content: SizedBox(
           width: double.maxFinite,
-          child: produtos.isEmpty
-              ? const Center(child: Text('Nenhum produto nesta lista'))
-              : ListView.builder(
-                  itemCount: produtos.length,
-                  itemBuilder: (context, index) {
-                    final p = produtos[index];
-                    final nome = p['nome']?.toString() ?? '';
-                    final qtd = p['quantidade']?.toString() ?? '1';
-                    final preco = (p['preco'] as num?)?.toDouble() ?? 0.0;
-                    final qtdNum = int.tryParse(qtd) ?? 1;
-                    final subtotal = preco * qtdNum;
-
-                    return ListTile(
-                      title: Text(nome),
-                      subtitle: Text('Qtd: $qtd'),
-                      trailing: Text(
-                        'R\$ ${subtotal.toStringAsFixed(2).replaceAll('.', ',')}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    );
-                  },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (criadorNome.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Compartilhada por: $criadorNome',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                  ),
                 ),
+              Flexible(
+                child: produtos.isEmpty
+                    ? const Center(child: Text('Nenhum produto nesta lista'))
+                    : ListView.builder(
+                        itemCount: produtos.length,
+                        itemBuilder: (context, index) {
+                          final p = produtos[index];
+                          final nome = p['nome']?.toString() ?? '';
+                          final qtd = p['quantidade']?.toString() ?? '1';
+                          final preco = (p['preco'] as num?)?.toDouble() ?? 0.0;
+                          final qtdNum = int.tryParse(qtd) ?? 1;
+                          final subtotal = preco * qtdNum;
+
+                          return ListTile(
+                            title: Text(nome),
+                            subtitle: Text('Qtd: $qtd'),
+                            trailing: Text(
+                              'R\$ ${subtotal.toStringAsFixed(2).replaceAll('.', ',')}',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(

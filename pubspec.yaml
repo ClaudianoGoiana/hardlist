@@ -29,6 +29,7 @@ dependencies:
   provider: ^6.1.5+1
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0 # Regras de boas práticas e código limpo da Google
@@ -39,3 +40,18 @@ flutter:
   # --- PASTA DE ARQUIVOS LOCAIS ---
   assets:
     - assets/images/
+
+flutter_launcher_icons:
+  image_path: "assets/icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icon.png"
+  linux:
+    generate: true
+    image_path: "assets/icon.png"

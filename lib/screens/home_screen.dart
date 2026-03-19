@@ -23,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _produtos = [];
   bool _carregando = true;
+  String _nomeListaAtual = '';
 
   @override
   void initState() {
@@ -34,10 +35,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _carregarProdutos() async {
     try {
       final db = await BancoLocal.bancoDeDados;
+      final lista = await db.query(
+        'listas',
+        where: 'id = ?',
+        whereArgs: [widget.listaId],
+        limit: 1,
+      );
       // Busca apenas os produtos que têm a etiqueta (lista_id) desta lista!
       final dados = await db.query('produtos', where: 'lista_id = ?', whereArgs: [widget.listaId]);
       
       setState(() {
+        _nomeListaAtual = (lista.isNotEmpty ? lista.first['nome']?.toString() : null) ?? widget.listaNome;
         _produtos = dados;
         _carregando = false;
       });
@@ -67,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.listaNome),
+        title: Text(_nomeListaAtual.isEmpty ? widget.listaNome : _nomeListaAtual),
         actions: [
           // Botão para compartilhar no cloud (só se estiver logado)
           if (Supabase.instance.client.auth.currentUser != null)
@@ -89,7 +97,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.turn_right, size: 80, color: Colors.grey.shade400),
-                      Text('Sua lista "${widget.listaNome}"\nestá vazia.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, color: Colors.grey)),
+                      Text(
+                        'Sua lista "${_nomeListaAtual.isEmpty ? widget.listaNome : _nomeListaAtual}"\nestá vazia.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 24, color: Colors.grey),
+                      ),
                     ],
                   ),
                 )
@@ -316,15 +328,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final id = const Uuid().v4();
     final produtosJson = jsonEncode(_produtos);
 
-    // Verifica se já existe uma lista compartilhada com este nome para este usuário
-    final listasCloud = await BancoLocal.listarListasCloud();
-    final listaJaCompartilhada = listasCloud.any(
-      (lista) => lista['lista_id'] == widget.listaId && lista['usuario_id'] == usuario.id
+    // Verifica se a lista já existe na nuvem para este usuário.
+    final listasNuvem = await BancoLocal.listarListasNaNuvemDoUsuario();
+    final listaJaCompartilhada = listasNuvem.any(
+      (lista) => lista['id'] == widget.listaId || lista['lista_id'] == widget.listaId,
     );
 
     if (listaJaCompartilhada) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Esta lista já foi compartilhada no cloud')),
+        const SnackBar(content: Text('Esta lista já está na nuvem')),
       );
       return;
     }
@@ -367,6 +379,29 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      if (!context.mounted) return;
+      final bool? publicarComoPublica = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Visibilidade da lista'),
+          content: const Text('Deseja publicar esta lista como pública (visível para outros usuários) ou privada (somente você)?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Privada'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Pública'),
+            ),
+          ],
+        ),
+      );
+
+      if (publicarComoPublica == null) {
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enviando para nuvem...')),
       );
@@ -378,6 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
         nome: widget.listaNome,
         usuarioId: usuario.id,
         produtosJson: produtosJson,
+        publica: publicarComoPublica,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(

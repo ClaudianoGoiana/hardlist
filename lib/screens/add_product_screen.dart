@@ -1,6 +1,7 @@
 // Arquivo: lib/screens/add_product_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart'; // O nosso gerador de códigos únicos!
 import '../dados/catalogo_local.dart';
@@ -32,6 +33,39 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _categoriaSelecionada = 'Todas';
   String _textoBusca = '';
 
+  Future<String?> _capturarERecortarFoto(ImagePicker picker) async {
+    try {
+      final XFile? foto = await picker.pickImage(source: ImageSource.camera);
+      if (foto == null) return null;
+
+      final CroppedFile? fotoRecortada = await ImageCropper().cropImage(
+        sourcePath: foto.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 90,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Recortar foto',
+            toolbarColor: const Color(0xFF1565C0),
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(title: 'Recortar foto'),
+        ],
+      );
+
+      // Se o usuário cancelar o recorte, mantém a foto original capturada.
+      return fotoRecortada?.path ?? foto.path;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao abrir recorte: $e')));
+      }
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final produtosFiltrados = produtos.where((produto) {
@@ -40,16 +74,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       final passouBusca = nome.contains(busca);
       final passouCategoria =
-          _categoriaSelecionada == 'Todas' || produto['categoria'] == _categoriaSelecionada;
+          _categoriaSelecionada == 'Todas' ||
+          produto['categoria'] == _categoriaSelecionada;
 
       return passouBusca && passouCategoria;
     }).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Adicionar Produtos'),
-      ),
-      
+      appBar: AppBar(title: const Text('Adicionar Produtos')),
+
       // --- 1. O CARDÁPIO RÁPIDO (GRID) ---
       body: Column(
         children: [
@@ -96,10 +129,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
               itemBuilder: (context, index) {
                 final produto = produtosFiltrados[index];
                 final caminhoFoto =
-                    produto['foto'] ?? CatalogoLocal.caminhoFotoPadrao(produto['nome'] ?? '');
+                    produto['foto'] ??
+                    CatalogoLocal.caminhoFotoPadrao(produto['nome'] ?? '');
                 return Card(
                   elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () async {
@@ -114,7 +150,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         'caminho_foto_local': caminhoFoto,
                         'quantidade': '1',
                         'preco': 0.00,
-                        'comprado': 0
+                        'comprado': 0,
                       });
 
                       if (context.mounted) {
@@ -148,11 +184,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 8.0),
+                          padding: const EdgeInsets.only(
+                            bottom: 12.0,
+                            left: 8.0,
+                            right: 8.0,
+                          ),
                           child: Text(
                             produto['nome']!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                         Container(
@@ -165,7 +208,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               bottomRight: Radius.circular(16),
                             ),
                           ),
-                          child: const Icon(Icons.add_shopping_cart, color: Colors.white),
+                          child: const Icon(
+                            Icons.add_shopping_cart,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -180,9 +226,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
       // --- 2. O BOTÃO PARA PRODUTOS EXCLUSIVOS DO USUÁRIO ---
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _abrirCriadorDeProdutoPersonalizado(context),
-        backgroundColor: Colors.orange.shade700, 
+        backgroundColor: Colors.orange.shade700,
         icon: const Icon(Icons.add_a_photo, color: Colors.white),
-        label: const Text('Novo Item', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'Novo Item',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
@@ -193,55 +242,106 @@ class _AddProductScreenState extends State<AddProductScreen> {
     String categoriaSelecionada = 'Outros';
     String? caminhoFotoPersonalizada;
     final ImagePicker picker = ImagePicker();
-    
-    final List<String> categorias = ['Mercearia', 'Açougue', 'Hortifruti', 'Frios e Laticínios', 'Bebidas', 'Limpeza', 'Higiene', 'Padaria', 'Outros'];
+
+    final List<String> categorias = [
+      'Mercearia',
+      'Açougue',
+      'Hortifruti',
+      'Frios e Laticínios',
+      'Bebidas',
+      'Limpeza',
+      'Higiene',
+      'Padaria',
+      'Outros',
+    ];
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, 
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateBottomSheet) {
             return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 24),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 24,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Produto Personalizado', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Produto Personalizado',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 16),
-                  
+
                   GestureDetector(
                     onTap: () async {
-                      final XFile? foto = await picker.pickImage(source: ImageSource.camera);
-                      if (foto != null) {
-                        setStateBottomSheet(() { caminhoFotoPersonalizada = foto.path; });
+                      final String? fotoPath = await _capturarERecortarFoto(
+                        picker,
+                      );
+                      if (fotoPath != null) {
+                        setStateBottomSheet(() {
+                          caminhoFotoPersonalizada = fotoPath;
+                        });
                       }
                     },
                     child: CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.grey.shade200,
-                      backgroundImage: caminhoFotoPersonalizada != null ? FileImage(File(caminhoFotoPersonalizada!)) : null,
-                      child: caminhoFotoPersonalizada == null ? const Icon(Icons.camera_alt, size: 30, color: Colors.grey) : null,
+                      backgroundImage: caminhoFotoPersonalizada != null
+                          ? FileImage(File(caminhoFotoPersonalizada!))
+                          : null,
+                      child: caminhoFotoPersonalizada == null
+                          ? const Icon(
+                              Icons.camera_alt,
+                              size: 30,
+                              color: Colors.grey,
+                            )
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  TextField(controller: nomeController, decoration: const InputDecoration(labelText: 'Nome do Produto', border: OutlineInputBorder())),
+                  TextField(
+                    controller: nomeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do Produto',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  
+
                   DropdownButtonFormField<String>(
                     initialValue: categoriaSelecionada,
-                    decoration: const InputDecoration(labelText: 'Categoria', border: OutlineInputBorder()),
-                    items: categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                    onChanged: (valor) => setStateBottomSheet(() { categoriaSelecionada = valor!; }),
+                    decoration: const InputDecoration(
+                      labelText: 'Categoria',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: categorias
+                        .map(
+                          (cat) =>
+                              DropdownMenuItem(value: cat, child: Text(cat)),
+                        )
+                        .toList(),
+                    onChanged: (valor) => setStateBottomSheet(() {
+                      categoriaSelecionada = valor!;
+                    }),
                   ),
                   const SizedBox(height: 24),
 
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), padding: const EdgeInsets.symmetric(vertical: 16)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1565C0),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
                       onPressed: () async {
                         if (nomeController.text.trim().isEmpty) return;
 
@@ -255,27 +355,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           'lista_id': widget.listaId,
                           'nome': nomeController.text,
                           'categoria': categoriaSelecionada,
-                          'caminho_foto_local': caminhoFotoPersonalizada, 
+                          'caminho_foto_local': caminhoFotoPersonalizada,
                           'quantidade': '1',
                           'preco': 0.00,
-                          'comprado': 0
+                          'comprado': 0,
                         });
 
                         if (context.mounted) {
-                          Navigator.pop(context); 
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item personalizado salvo!'), backgroundColor: Colors.green));
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Item personalizado salvo!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
                         }
                       },
-                      child: const Text('Salvar na Lista', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      child: const Text(
+                        'Salvar na Lista',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
                 ],
               ),
             );
-          }
+          },
         );
-      }
+      },
     );
   }
 }

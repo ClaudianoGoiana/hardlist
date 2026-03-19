@@ -27,6 +27,7 @@ dependencies:
   uuid: ^4.5.3         # Gerador de códigos únicos para produtos offline
   path: ^1.9.1         # Auxiliar para achar os caminhos das pastas no celular
   provider: ^6.1.5+1
+  image_cropper: ^11.0.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1

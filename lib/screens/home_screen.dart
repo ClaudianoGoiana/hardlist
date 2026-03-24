@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../dados/banco_local.dart'; // O nosso cofre local!
@@ -26,6 +29,125 @@ class _HomeScreenState extends State<HomeScreen> {
     final baseNumerica = somenteNumeros.isEmpty ? '0' : somenteNumeros;
     final valor = (double.tryParse(baseNumerica) ?? 0) / 100;
     return valor.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  String _formatarMoeda(double valor) {
+    return valor.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  String _nomeListaExibicao() {
+    return _nomeListaAtual.isEmpty ? widget.listaNome : _nomeListaAtual;
+  }
+
+  Future<void> _imprimirLista() async {
+    if (_produtos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nao ha itens para imprimir nesta lista.'),
+        ),
+      );
+      return;
+    }
+
+    final pdf = pw.Document();
+    final Map<String, List<Map<String, dynamic>>> produtosAgrupados = {};
+    double valorTotal = 0.0;
+
+    for (final produto in _produtos) {
+      final categoria = produto['categoria']?.toString() ?? 'Outros';
+      produtosAgrupados.putIfAbsent(categoria, () => []).add(produto);
+
+      final preco = (produto['preco'] as num?)?.toDouble() ?? 0.0;
+      final quantidade = int.tryParse(produto['quantidade'].toString()) ?? 1;
+      valorTotal += preco * quantidade;
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          final widgets = <pw.Widget>[
+            pw.Text(
+              'Lista de Compras - ${_nomeListaExibicao()}',
+              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              'Gerado em: ${DateTime.now().day.toString().padLeft(2, '0')}/${DateTime.now().month.toString().padLeft(2, '0')}/${DateTime.now().year}',
+            ),
+            pw.SizedBox(height: 16),
+          ];
+
+          for (final entry in produtosAgrupados.entries) {
+            widgets.add(
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 6,
+                ),
+                color: PdfColors.blue100,
+                child: pw.Text(
+                  entry.key,
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 6));
+
+            for (final produto in entry.value) {
+              final nome = produto['nome']?.toString() ?? 'Produto';
+              final preco = (produto['preco'] as num?)?.toDouble() ?? 0.0;
+              final quantidade =
+                  int.tryParse(produto['quantidade'].toString()) ?? 1;
+              final subtotal = preco * quantidade;
+
+              widgets.add(
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(child: pw.Text('$nome (${quantidade} un.)')),
+                    pw.SizedBox(width: 12),
+                    pw.Text('R\$ ${_formatarMoeda(subtotal)}'),
+                  ],
+                ),
+              );
+              widgets.add(pw.Divider(color: PdfColors.grey300, height: 10));
+            }
+
+            widgets.add(pw.SizedBox(height: 10));
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+          widgets.add(
+            pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(
+                'Total da Lista: R\$ ${_formatarMoeda(valorTotal)}',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+
+          return widgets;
+        },
+      ),
+    );
+
+    try {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'lista_${widget.listaId}.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao imprimir lista: $e')));
+    }
   }
 
   List<Map<String, dynamic>> _produtos = [];
@@ -90,9 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _nomeListaAtual.isEmpty ? widget.listaNome : _nomeListaAtual,
-        ),
+        title: Text(_nomeListaExibicao()),
         actions: [
           // Botão para compartilhar no cloud (só se estiver logado)
           if (Supabase.instance.client.auth.currentUser != null)
@@ -101,7 +221,20 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'Compartilhar no Cloud',
               onPressed: () => _compartilharLista(context),
             ),
-          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'imprimir') {
+                await _imprimirLista();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'imprimir',
+                child: Text('Imprimir lista'),
+              ),
+            ],
+          ),
         ],
       ),
       drawer: const AppDrawer(),

@@ -47,6 +47,7 @@ Thumbs.db
 .pub-cache/
 .pub/
 /build/
+**/build/
 /coverage/
 .dart_tool/
 

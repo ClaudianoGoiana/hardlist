@@ -21,6 +21,7 @@ migrate_working_dir/
 .idea/
 # Pastas de Build e Arquivos Gerados
 /build/
+**/build/
 /.dart_tool/
 /.idea/
 .flutter-plugins

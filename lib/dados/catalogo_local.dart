@@ -59,7 +59,7 @@ class CatalogoLocal {
 
     // --- AÇOUGUE ---
     { 'nome': 'Picanha', 'categoria': 'Açougue' },
-    { 'nome': 'Alcatra', 'categoria': 'Açougue' },
+    { 'nome': 'Picanha', 'categoria': 'Açougue', 'foto': 'assets/images/picanha.webp' },
     { 'nome': 'Contrafilé', 'categoria': 'Açougue' },
     { 'nome': 'Patinho', 'categoria': 'Açougue' },
     { 'nome': 'Coxão Mole', 'categoria': 'Açougue' },
@@ -162,31 +162,4 @@ class CatalogoLocal {
     { 'nome': 'Bolo de Cenoura', 'categoria': 'Padaria' },
     { 'nome': 'Bolo de Chocolate', 'categoria': 'Padaria' },
     { 'nome': 'Croissant', 'categoria': 'Padaria' },
-    { 'nome': 'Sonho', 'categoria': 'Padaria' },
-    { 'nome': 'Biscoito Doce', 'categoria': 'Padaria' },
-    { 'nome': 'Biscoito Salgado', 'categoria': 'Padaria' },
-    { 'nome': 'Torrada', 'categoria': 'Padaria' },
-    { 'nome': 'Pão Doce', 'categoria': 'Padaria' },
-    { 'nome': 'Torta Salgada', 'categoria': 'Padaria' },
-    { 'nome': 'Empada', 'categoria': 'Padaria' },
-    { 'nome': 'Coxinha', 'categoria': 'Padaria' },
-    { 'nome': 'Esfiha', 'categoria': 'Padaria' },
-
-    // --- OUTROS ---
-    { 'nome': 'Pilha AA', 'categoria': 'Outros' },
-    { 'nome': 'Lâmpada', 'categoria': 'Outros' },
-    { 'nome': 'Fósforo', 'categoria': 'Outros' },
-    { 'nome': 'Vela', 'categoria': 'Outros' },
-    { 'nome': 'Carvão', 'categoria': 'Outros' },
-    { 'nome': 'Acendedor', 'categoria': 'Outros' },
-    { 'nome': 'Ração Cachorro', 'categoria': 'Outros' },
-    { 'nome': 'Ração Gato', 'categoria': 'Outros' },
-    { 'nome': 'Areia Gato', 'categoria': 'Outros' },
-    { 'nome': 'Inseticida', 'categoria': 'Outros' },
-    { 'nome': 'Repelente', 'categoria': 'Outros' },
-    { 'nome': 'Fita Adesiva', 'categoria': 'Outros' },
-    { 'nome': 'Cola', 'categoria': 'Outros' },
-    { 'nome': 'Caderno', 'categoria': 'Outros' },
-    { 'nome': 'Caneta', 'categoria': 'Outros' },
-  ];
-}
+    { 'nome': 'Sonho', 'categoria': 'P
